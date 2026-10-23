@@ -1020,7 +1020,10 @@ const actions = {
   saveConf: async () => {
     const url = norm($('#cfUrl').value);
     const key = $('#cfKey').value.trim();
-    if (!/^https:\/\/script\.google(usercontent)?\.com\//.test(url)) return toast('Apps Script の URL 入れてくれや');
+    // デプロイ画面に出る …/macros/s/<ID>/exec だけ受け付ける（ブラウザで開いたときの googleusercontent の URL は使えん）
+    if (!/^https:\/\/script\.google\.com\/macros\/s\/[\w-]+\/exec\/?$/.test(url)) {
+      return alert('URL が違うで。\nデプロイの画面に出る「https://script.google.com/macros/s/…/exec」で終わる URL を入れてくれや');
+    }
     if (!key) return toast('合言葉入れてくれや');
     setSync('busy');
     try {
