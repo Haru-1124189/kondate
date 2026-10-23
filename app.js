@@ -520,7 +520,7 @@ function renderSettings(el) {
   const status = { local: '⚪ この端末にだけ保存中', busy: '🟡 同期中…', ok: '🟢 スプレッドシートと同期中', err: '🔴 同期できてない：' + esc(sync.msg) }[sync.state];
   el.innerHTML = `
     <div class="card">
-      <h2>2人で共有（Googleスプレッドシート）</h2>
+      <h2>共有（Googleスプレッドシート）</h2>
       <p class="status">${status}</p>
       <label class="field">Apps Script の URL
         <input id="cfUrl" type="url" placeholder="https://script.google.com/macros/s/…/exec" value="${esc(conf.url)}" autocomplete="off">
