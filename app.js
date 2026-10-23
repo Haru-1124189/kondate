@@ -451,10 +451,26 @@ function renderRecipes(el) {
       <span>🏠 いつも家にある物</span>
       <small>${staples().length ? esc(staples().slice(0, 6).join('、')) + (staples().length > 6 ? ' ほか' : '') : '調味料や米などを登録'} ›</small>
     </button>
+    <div class="seg cat-filter">${['すべて', ...RECIPE_CATS.filter(c => c !== 'その他')].map(c =>
+      `<button class="${(ui.recipeCat || 'すべて') === c ? 'on' : ''}" data-act="recipeCat" data-c="${c}">${c}</button>`).join('')}</div>
     ${tagChips(ui.recipeTag, 'recipeTag')}
     <div id="recipeList"></div>
     <div class="plan-foot"><button class="btn" data-act="restorePresets">定番料理を入れ直す</button></div>`;
   renderRecipeList();
+}
+
+// ---- 五十音 ----
+const GYOU = ['あ', 'か', 'さ', 'た', 'な', 'は', 'ま', 'や', 'ら', 'わ'];
+const GYOU_CHARS = ['あいうえおぁぃぅぇぉ', 'かきくけこ', 'さしすせそ', 'たちつてとっ', 'なにぬねの', 'はひふへほ', 'まみむめも', 'やゆよゃゅょ', 'らりるれろ', 'わをんゎ'];
+// 並び順用の読み（自分で入れたよみがな → 定番料理の読み → 料理名そのもの）をひらがなに
+function yomiOf(r) {
+  const s = norm(r.yomi || PRESET_YOMI[r.name] || r.name);
+  return s.replace(/[ァ-ヶ]/g, c => String.fromCharCode(c.charCodeAt(0) - 0x60));
+}
+function gyouOf(r) {
+  const c = yomiOf(r).normalize('NFD')[0]; // 濁点・半濁点を外す（ぎ→き、ぱ→は）
+  const i = GYOU_CHARS.findIndex(g => g.includes(c));
+  return i < 0 ? '他' : GYOU[i];
 }
 
 // タグの絞り込みチップ（1つ選ぶ／もう一度押すと解除）
@@ -476,20 +492,27 @@ function renderRecipeList() {
   if (!box) return;
   const q = norm(ui.recipeQuery).toLowerCase();
   const last = lastUsedMap();
-  const all = recipes().filter(r => matchRecipe(r, q, ui.recipeTag));
+  const cat = ui.recipeCat && ui.recipeCat !== 'すべて' ? ui.recipeCat : '';
+  const all = recipes().filter(r => (!cat || (r.cat || 'その他') === cat) && matchRecipe(r, q, ui.recipeTag))
+    .sort((a, b) => yomiOf(a).localeCompare(yomiOf(b), 'ja'));
   if (!recipes().length) { box.innerHTML = `<p class="empty">まだ料理がありません。<br>よく作る料理と材料を登録しておくと、買い物リストが自動で作れます。</p>`; return; }
   if (!all.length) { box.innerHTML = `<p class="empty">見つかりませんでした</p>`; return; }
-  box.innerHTML = RECIPE_CATS.map(cat => {
-    const rs = all.filter(r => (r.cat || 'その他') === cat).sort((a, b) => a.name.localeCompare(b.name, 'ja'));
-    if (!rs.length) return '';
-    return `<h3 class="grp">${cat}</h3>` + rs.map(r => {
-      const n = (r.ings || []).filter(i => norm(i.n)).length;
-      return `<button class="recipe-row" data-act="editRecipe" data-id="${r.id}">
-        <span class="rname">${esc(r.name)}</span>
-        <span class="rmeta">${n ? `材料${n}品` : '<span class="warn-text">材料未登録</span>'} · ${lastUsedLabel(last[r.id])}</span>
-      </button>`;
-    }).join('');
-  }).join('');
+  const groups = [...GYOU, '他'].map(g => [g, all.filter(r => gyouOf(r) === g)]).filter(([, rs]) => rs.length);
+  box.innerHTML = `
+    <div class="kana-index">${[...GYOU, '他'].map(g => {
+      const has = groups.some(([x]) => x === g);
+      return g === '他' && !has ? '' : `<button data-act="jumpKana" data-g="${g}"${has ? '' : ' disabled'}>${g}</button>`;
+    }).join('')}</div>
+    <p class="hint list-count">${all.length} 品</p>
+    ${groups.map(([g, rs]) => `
+      <h3 class="grp kana-head" id="g-${g}">${g === '他' ? 'その他' : g + '行'}</h3>
+      <div class="recipe-grid">${rs.map(r => {
+        const n = (r.ings || []).filter(i => norm(i.n)).length;
+        return `<button class="recipe-cell c-${RECIPE_CATS.indexOf(r.cat || 'その他')}" data-act="editRecipe" data-id="${r.id}">
+          <span class="rname">${esc(r.name)}</span>
+          <span class="rmeta">${cat ? '' : esc(r.cat || 'その他') + ' · '}${n ? lastUsedLabel(last[r.id]) : '<span class="warn-text">材料未登録</span>'}</span>
+        </button>`;
+      }).join('')}</div>`).join('')}`;
 }
 
 // ---- 設定 ----
@@ -649,6 +672,9 @@ function openRecipeEditor(id, opts = {}) {
       <h2>${r ? '料理を編集' : '料理を登録'}</h2>
       <label class="field">料理名
         <input name="name" required value="${esc(r?.name || opts.name || '')}" autocomplete="off">
+      </label>
+      <label class="field">よみがな <small>（漢字で始まる料理だけ。五十音の並び用）</small>
+        <input name="yomi" value="${esc(r?.yomi || '')}" placeholder="${esc(r && PRESET_YOMI[r.name] ? PRESET_YOMI[r.name] : '例: ぎょうざ')}" autocomplete="off">
       </label>
       <div class="field">種類
         <div class="seg">${RECIPE_CATS.map(c => `<label><input type="radio" name="cat" value="${c}"${(r?.cat || opts.cat || '主菜') === c ? ' checked' : ''}><span>${c}</span></label>`).join('')}</div>
@@ -924,6 +950,8 @@ const actions = {
     shareText(lines.join('\n'), '買い物リスト');
   },
   // タグの絞り込み
+  recipeCat: b => { ui.recipeCat = b.dataset.c; render(true); },
+  jumpKana: b => $('#g-' + b.dataset.g)?.scrollIntoView({ behavior: 'smooth' }),
   recipeTag: b => { ui.recipeTag = ui.recipeTag === b.dataset.t ? '' : b.dataset.t; render(true); },
   pickTag: b => {
     sheetCtx.tag = sheetCtx.tag === b.dataset.t ? '' : b.dataset.t;
@@ -1049,7 +1077,7 @@ const forms = {
     const ctx = sheetCtx;
     const id = ctx.id || uid();
     const tags = $$('input[name=tags]:checked', f).map(i => i.value);
-    const value = { name, cat: f.elements.cat.value || 'その他', tags, ings, memo: f.elements.memo.value.trim() };
+    const value = { name, yomi: norm(f.elements.yomi.value), cat: f.elements.cat.value || 'その他', tags, ings, memo: f.elements.memo.value.trim() };
     if (ctx.addTo) {
       setMany([['rcp:' + id, value], ['meal:' + ctx.addTo, { ...meal(ctx.addTo), dishes: [...(meal(ctx.addTo).dishes || []), { r: id, t: name }] }]]);
     } else if (ctx.replace) {
