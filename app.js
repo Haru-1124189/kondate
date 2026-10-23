@@ -190,8 +190,18 @@ function sumAmounts(list) {
 // 週の買い物データ
 //   料理ごと：その日のその料理に必要な材料（チェックは料理×材料ごと）
 //   まとめて：同じ材料を週で合算（チェックは中の全部をまとめて付け外し）
+//   材料ごとの状態: need（買う）/ bought（買った）/ have（家にある）
+//     chk の値  1 = 買った、'h' = 家にある、0 = 買う（いつも家にある物をこの週だけ買う）
+//     値がなければ、いつも家にある物なら have、それ以外は need
 function shoppingList(week) {
-  const chk = ck => !!data[`chk:${week}:${ck}`];
+  const stateOf = ck => {
+    const v = data[`chk:${week}:${ck}`];
+    if (v === 1) return 'bought';
+    if (v === 'h') return 'have';
+    if (v === 0) return 'need';
+    return isStapleCk(ck) ? 'have' : 'need';
+  };
+  const withState = (o, ck) => { const st = stateOf(ck); return { ...o, cks: [ck], state: st, checked: st !== 'need', have: st === 'have' }; };
   const days = [];
   const missing = [];
   for (const date of weekDates(week)) {
@@ -201,8 +211,7 @@ function shoppingList(week) {
       if (!r) continue; // 登録していない料理（外食メモなど）は材料なし
       const ings = (r.ings || []).filter(i => norm(i.n)).map(i => {
         const name = norm(i.n);
-        const ck = `d:${date}:${d.r}:${name.toLowerCase()}`;
-        return { name, key: name.toLowerCase(), amount: norm(i.a), cat: guessCat(name), cks: [ck], checked: chk(ck) };
+        return withState({ name, key: name.toLowerCase(), amount: norm(i.a), cat: guessCat(name) }, `d:${date}:${d.r}:${name.toLowerCase()}`);
       });
       if (!ings.length) missing.push({ id: d.r, name: r.name, dow: dowOf(date) });
       dishes.push({ id: d.r, name: r.name, cat: r.cat || 'その他', ings });
@@ -213,21 +222,23 @@ function shoppingList(week) {
   const agg = new Map();
   for (const day of days) for (const dish of day.dishes) for (const i of dish.ings) {
     let it = agg.get(i.key);
-    if (!it) agg.set(i.key, (it = { name: i.name, cat: i.cat, amounts: [], days: [], dishes: [], cks: [], done: 0 }));
+    if (!it) agg.set(i.key, (it = { name: i.name, cat: i.cat, amounts: [], days: [], dishes: [], cks: [], done: 0, haves: 0 }));
     if (i.amount) it.amounts.push(i.amount);
     const dw = dowOf(day.date);
     if (!it.days.includes(dw)) it.days.push(dw);
     if (!it.dishes.includes(dish.name)) it.dishes.push(dish.name);
     it.cks.push(...i.cks);
     if (i.checked) it.done++;
+    if (i.have) it.haves++;
   }
-  const list = [...agg.values()].map(it => ({ ...it, amount: sumAmounts(it.amounts), checked: it.done === it.cks.length }));
+  const list = [...agg.values()].map(it => ({
+    ...it, amount: sumAmounts(it.amounts),
+    checked: it.done === it.cks.length, have: it.haves === it.cks.length,
+  }));
 
   const prefix = `ext:${week}:`;
-  const extras = Object.entries(data).filter(([k]) => k.startsWith(prefix)).map(([k, v]) => {
-    const ck = 'x:' + k.slice(prefix.length);
-    return { name: v.n, cat: '追加', amount: '', days: [], dishes: [], extKey: k, cks: [ck], checked: chk(ck) };
-  });
+  const extras = Object.entries(data).filter(([k]) => k.startsWith(prefix))
+    .map(([k, v]) => withState({ name: v.n, cat: '追加', amount: '', days: [], dishes: [], extKey: k }, 'x:' + k.slice(prefix.length)));
   list.push(...extras);
   list.sort((a, b) => SHOP_CATS.indexOf(a.cat) - SHOP_CATS.indexOf(b.cat) || a.name.localeCompare(b.name, 'ja'));
 
@@ -235,6 +246,16 @@ function shoppingList(week) {
   const all = [...days.flatMap(d => d.dishes.flatMap(x => x.ings)), ...extras];
   return { days, list, extras, missing, total: all.length, done: all.filter(i => i.checked).length };
 }
+
+// ---- いつも家にある物 ----
+//   stp:<材料名(小文字)> → {n}
+const stapleKey = name => 'stp:' + norm(name).toLowerCase();
+const isStaple = name => !!data[stapleKey(name)];
+const staples = () => Object.entries(data).filter(([k]) => k.startsWith('stp:')).map(([, v]) => v.n).sort((a, b) => a.localeCompare(b, 'ja'));
+// ck = d:<日付>:<料理ID>:<材料名>
+const isStapleCk = ck => ck.startsWith('d:') && !!data['stp:' + ck.split(':').slice(3).join(':')];
+// 「買う」に戻すときの値：いつも家にある物は明示的に 0 を入れないと「家にある」に戻ってしまう
+const needValue = ck => (isStapleCk(ck) ? 0 : null);
 
 // ============================================================
 // 画面
@@ -338,16 +359,22 @@ function renderPlanWeek(week) {
 function renderShop(el) {
   const sh = shoppingList(ui.shopWeek);
   const byDish = ui.shopMode !== 'all';
-  const row = it => `
-    <div class="item${it.checked ? ' checked' : ''}">
+  const row = it => {
+    const cks = esc(it.cks.join('|'));
+    return `
+    <div class="item${it.checked ? ' checked' : ''}${it.have ? ' have' : ''}">
       <label>
-        <input type="checkbox" data-chk="${esc(it.cks.join('|'))}"${it.checked ? ' checked' : ''}>
+        ${it.have ? '<span class="have-icon" aria-hidden="true">🏠</span>'
+          : `<input type="checkbox" data-chk="${cks}"${it.checked ? ' checked' : ''} aria-label="買った">`}
         <span class="iname">${esc(it.name)}</span>
         ${it.amount ? `<span class="iamt">${esc(it.amount)}</span>` : ''}
         ${!byDish && it.days.length ? `<span class="idays" title="${esc(it.dishes.join('、'))}">${it.days.join('・')}</span>` : ''}
       </label>
-      ${it.extKey ? `<button class="x" data-act="delExtra" data-k="${esc(it.extKey)}" aria-label="削除">×</button>` : ''}
+      ${it.extKey ? `<button class="x" data-act="delExtra" data-k="${esc(it.extKey)}" aria-label="削除">×</button>`
+        : it.have ? `<button class="have-btn undo" data-act="have" data-chk="${cks}" data-on="0">やっぱり買う</button>`
+        : !it.checked ? `<button class="have-btn" data-act="have" data-chk="${cks}" data-on="1">家にある</button>` : ''}
     </div>`;
+  };
 
   let body;
   if (byDish) {
@@ -369,7 +396,8 @@ function renderShop(el) {
       + (sh.extras.length ? `<h3 class="grp">追加で買うもの</h3>${sh.extras.map(row).join('')}` : '');
   } else {
     const todo = sh.list.filter(i => !i.checked);
-    const done = sh.list.filter(i => i.checked);
+    const have = sh.list.filter(i => i.have);
+    const done = sh.list.filter(i => i.checked && !i.have);
     body = (sh.missing.length ? `
       <div class="callout">材料が未登録の料理：
         ${sh.missing.map(m => `<button class="link" data-act="editRecipe" data-id="${m.id}">${esc(m.name)}（${m.dow}）</button>`).join('、')}
@@ -379,7 +407,8 @@ function renderShop(el) {
         if (!items.length) return '';
         return `<h3 class="grp">${cat === '調味料' ? '調味料 <small>家にあるか確認</small>' : cat}</h3>${items.map(row).join('')}`;
       }).join('')
-      + (done.length ? `<h3 class="grp muted">チェック済み</h3>${done.map(row).join('')}` : '');
+      + (have.length ? `<h3 class="grp muted">家にある</h3>${have.map(row).join('')}` : '')
+      + (done.length ? `<h3 class="grp muted">買った</h3>${done.map(row).join('')}` : '');
   }
 
   const empty = !sh.days.length && !sh.extras.length;
@@ -397,12 +426,15 @@ function renderShop(el) {
       <input id="extraInput" name="n" placeholder="ほかに買うもの（洗剤・牛乳など）" autocomplete="off" enterkeyhint="done">
       <button class="btn primary">追加</button>
     </form>
+    ${empty ? '' : `
+      <p class="hint shop-hint">冷蔵庫を見ながら、残っている物は「家にある」を押してください。
+        <button class="link" data-act="staples">いつも家にある物（${staples().length}）</button></p>`}
     ${empty ? `<p class="empty">この週の献立に、登録済みの料理がまだありません。<br>献立を入れると、ここに材料が並びます。</p>` : body}
     ${sh.total && sh.done === sh.total ? `<p class="empty">全部そろいました 🎉</p>` : ''}
     ${sh.total ? `
       <div class="plan-foot">
         <button class="btn" data-act="shareList">リストを送る / コピー</button>
-        ${sh.done ? `<button class="btn" data-act="uncheckAll">チェックを全部外す</button>` : ''}
+        ${sh.done ? `<button class="btn" data-act="uncheckAll">チェックをリセット</button>` : ''}
       </div>` : ''}`;
 }
 
@@ -413,6 +445,10 @@ function renderRecipes(el) {
       <input type="search" id="recipeQuery" placeholder="料理名・材料で検索" value="${esc(ui.recipeQuery)}" autocomplete="off">
       <button class="btn primary" data-act="newRecipe">＋ 新しい料理</button>
     </div>
+    <button class="staple-row" data-act="staples">
+      <span>🏠 いつも家にある物</span>
+      <small>${staples().length ? esc(staples().slice(0, 6).join('、')) + (staples().length > 6 ? ' ほか' : '') : '調味料や米などを登録'} ›</small>
+    </button>
     <div id="recipeList"></div>`;
   renderRecipeList();
 }
@@ -612,6 +648,32 @@ function openRecipeEditor(id, opts = {}) {
     </form>`, { id, ...opts });
   if (!r) $('input[name=name]', sheet).focus();
 }
+// いつも家にある物（調味料・米など）
+function openStaples() {
+  const list = staples();
+  const have = new Set(list.map(n => n.toLowerCase()));
+  // 候補：登録済みの材料のうち、調味料・乾物っぽいもの
+  const cands = knownIngredients().filter(n => !have.has(n.toLowerCase()) && ['調味料', '主食・乾物'].includes(guessCat(n)));
+  $('#ingList').innerHTML = knownIngredients().map(n => `<option value="${esc(n)}">`).join('');
+  openSheet(`
+    <form class="sheet-body" data-form="staple">
+      <h2>いつも家にある物</h2>
+      <p class="hint">ここに入れた物は、買い物リストで最初から「家にある」になります。切れているときは、その週だけ「やっぱり買う」にできます。</p>
+      <div class="add-extra">
+        <input name="n" list="ingList" placeholder="例: 醤油、米、塩" autocomplete="off" enterkeyhint="done">
+        <button class="btn primary">追加</button>
+      </div>
+      <div class="chips">
+        ${list.length ? list.map(n => `<button type="button" class="chip on" data-act="delStaple" data-n="${esc(n)}">${esc(n)} ×</button>`).join('')
+          : '<p class="hint">まだありません</p>'}
+      </div>
+      ${cands.length ? `
+        <h3 class="grp">候補（タップで追加）</h3>
+        <div class="chips">${cands.map(n => `<button type="button" class="chip" data-act="addStapleChip" data-n="${esc(n)}">＋ ${esc(n)}</button>`).join('')}</div>` : ''}
+      <div class="sheet-actions"><span class="spacer"></span><button type="button" class="btn primary" data-act="close">完了</button></div>
+    </form>`);
+}
+
 function ingRow(i = { n: '', a: '' }) {
   return `<div class="ing">
     <input class="ing-n" list="ingList" placeholder="材料" value="${esc(i.n)}" autocomplete="off" enterkeyhint="next">
@@ -755,6 +817,14 @@ const actions = {
     }
     shareText(lines.join('\n'), '買い物リスト');
   },
+  have: b => {
+    const on = b.dataset.on === '1';
+    setMany(b.dataset.chk.split('|').map(ck => [`chk:${ui.shopWeek}:${ck}`, on ? 'h' : needValue(ck)]));
+    render(true);
+  },
+  staples: () => openStaples(),
+  addStapleChip: b => { set(stapleKey(b.dataset.n), { n: b.dataset.n }); openStaples(); },
+  delStaple: b => { set(stapleKey(b.dataset.n), null); openStaples(); },
   shopMode: b => { ui.shopMode = b.dataset.mode; store(K.shopMode, ui.shopMode); render(true); },
 
   // 設定
@@ -797,6 +867,12 @@ const actions = {
 };
 
 const forms = {
+  staple: f => {
+    const n = norm(f.elements.n.value);
+    if (n) set(stapleKey(n), { n });
+    openStaples();
+    $('input[name=n]', sheet).focus(); // 続けて入力できるように
+  },
   note: f => { setMeal(sheetCtx.date, { ...meal(sheetCtx.date), note: f.elements.note.value }); closeSheet(); },
   extra: f => {
     const n = norm(f.elements.n.value);
@@ -844,13 +920,13 @@ document.addEventListener('submit', e => {
 document.addEventListener('change', e => {
   const t = e.target;
   if (t.dataset.chk) {
-    setMany(t.dataset.chk.split('|').map(ck => [`chk:${ui.shopWeek}:${ck}`, t.checked ? 1 : null]));
+    setMany(t.dataset.chk.split('|').map(ck => [`chk:${ui.shopWeek}:${ck}`, t.checked ? 1 : needValue(ck)]));
     render(true);
   } else if (t.id === 'importFile' && t.files[0]) {
     t.files[0].text().then(txt => {
       const j = JSON.parse(txt);
       const d = j.data || j;
-      const keys = Object.keys(d).filter(k => /^(rcp|meal|ext|chk):/.test(k));
+      const keys = Object.keys(d).filter(k => /^(rcp|meal|ext|chk|stp):/.test(k));
       if (!keys.length) throw new Error('empty');
       if (!confirm(`${keys.length} 件のデータを読み込みますか？（今のデータに上書き・追加されます）`)) return;
       setMany(keys.map(k => [k, d[k]]));

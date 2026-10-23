@@ -254,3 +254,26 @@ dialog#sheet::backdrop { background: rgb(0 0 0 / 0.4); }
 .dish-card .item { box-shadow: none; margin: 0; border-radius: 0; border-top: 1px solid var(--line); }
 .dish-card .item.checked { opacity: 0.45; }
 .dish-missing { margin: 0; padding: 10px 14px; font-size: 14px; color: var(--warn); border-top: 1px solid var(--line); }
+
+/* ---- 家にある ---- */
+.have-btn {
+  flex: none; margin-right: 8px; min-height: 36px; padding: 4px 10px;
+  border: 1px solid var(--line); border-radius: 999px; background: var(--bg);
+  font-size: 13px; font-weight: 600; color: var(--muted); white-space: nowrap;
+}
+.have-btn.undo { color: var(--accent); border-color: var(--accent); background: none; }
+.have-icon { width: 24px; text-align: center; flex: none; font-size: 18px; }
+.item.have .iname { text-decoration: none; }
+.item.have .iname::after { content: "家にある"; margin-left: 6px; font-size: 11px; font-weight: 600; color: var(--accent); background: var(--accent-soft); padding: 1px 6px; border-radius: 6px; vertical-align: 2px; }
+.shop-hint { margin: 4px 4px 8px; }
+.staple-row {
+  display: flex; width: 100%; justify-content: space-between; align-items: center; gap: 8px;
+  margin: 12px 0 4px; padding: 12px 14px; border: 1.5px dashed var(--line); border-radius: 12px;
+  background: none; text-align: left; font-weight: 600;
+}
+.staple-row small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.chip.on { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); font-weight: 600; }
+.sheet-body .add-extra { margin-top: 12px; }
+/* 「やっぱり買う」は押せることが分かるよう薄くしない */
+.item.have, .dish-card .item.have { opacity: 1; }
+.item.have label { opacity: 0.5; }

@@ -105,7 +105,8 @@ function describe_(k, v) {
       return k.slice(5) + ' 夕食：' + (v.dishes || []).map(function (d) { return d.t; }).join('・') + (v.note ? '（' + v.note + '）' : '');
     }
     if (k.indexOf('ext:') === 0) return '買い物に追加：' + v.n;
-    if (k.indexOf('chk:') === 0) return '買い物チェック済み';
+    if (k.indexOf('chk:') === 0) return v === 'h' ? '家にある' : v === 0 ? '買う' : '買った';
+    if (k.indexOf('stp:') === 0) return 'いつも家にある：' + v.n;
   } catch (err) { /* 説明が作れなくても保存はする */ }
   return '';
 }
