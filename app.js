@@ -551,6 +551,15 @@ function renderSettings(el) {
       </div>
       <p class="hint">設定のしかたは <a href="https://github.com/Haru-1124189/kondate#readme" target="_blank" rel="noopener">README</a> 見てくれや。</p>
     </div>
+    ${conf.url ? '' : `
+    <div class="card">
+      <h2>設定リンクを貼ってつなぐ</h2>
+      <p>LINE で届いた設定リンクをコピーして、ここに貼ってくれや。<br><small>※ホーム画面のアプリは Safari と保存場所が別やから、こっちで入れ直す。</small></p>
+      <div class="add-extra">
+        <input id="setupLink" placeholder="https://haru-1124189.github.io/kondate/#s=…" autocomplete="off">
+        <button class="btn primary" data-act="pasteSetup">つなぐ</button>
+      </div>
+    </div>`}
     ${conf.url ? `
     <div class="card">
       <h2>相手のスマホを設定</h2>
@@ -1052,6 +1061,11 @@ const actions = {
     }
     render(true);
   },
+  pasteSetup: async () => {
+    const m = $('#setupLink').value.match(/#s=([\w-]+)/);
+    if (!m) return alert('設定リンクやないみたいやで。\n「…/kondate/#s=…」っていうリンクを丸ごと貼ってくれや');
+    await applySetupCode(m[1]);
+  },
   disconnect: () => {
     if (!confirm('スプレッドシートとの同期やめる？\n（この端末のデータは残るで）')) return;
     conf = { url: '', key: '' };
@@ -1169,8 +1183,12 @@ async function readSetupHash() {
   const m = location.hash.match(/^#s=([\w-]+)/);
   if (!m) return;
   history.replaceState(null, '', location.pathname + location.search);
+  await applySetupCode(m[1]);
+}
+// 設定リンクの #s= の後ろ（URL と合言葉が入っとる）を読んでつなぐ
+async function applySetupCode(code) {
   let c;
-  try { c = JSON.parse(b64d(m[1])); } catch { alert('設定リンク壊れとるっぽいわ'); return; }
+  try { c = JSON.parse(b64d(code)); } catch { alert('設定リンク壊れとるっぽいわ'); return; }
   if (!c.u) return;
   if (conf.url === c.u && conf.key === c.k) return toast('もう設定済みやで');
   if (!confirm('共有の設定を読み込む？\n（2人で同じ献立・買い物リスト使えるようになるで）')) return;
@@ -1210,3 +1228,6 @@ if (ui.view === 'plan' && isWeekend()) $('#w-' + shiftWeek(ui.planWeek, 1))?.scr
   if (!data['cfg:seeded'] && (!conf.url || sync.state === 'ok')) seedPresets();
   pruneOld();
 })();
+
+// ホーム画面に追加したとき、電波がなくても開けるように
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
