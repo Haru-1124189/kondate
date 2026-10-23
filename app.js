@@ -1,0 +1,838 @@
+'use strict';
+
+// ============================================================
+// 小道具
+// ============================================================
+const $ = (s, el = document) => el.querySelector(s);
+const $$ = (s, el = document) => [...el.querySelectorAll(s)];
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const norm = s => String(s ?? '').normalize('NFKC').trim();
+const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+const load = (k, d) => { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : d; } catch { return d; } };
+const store = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch { /* 容量オーバー等 */ } };
+
+const pad = n => String(n).padStart(2, '0');
+const ymd = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+const parseYmd = s => { const [y, m, d] = s.split('-').map(Number); return new Date(y, m - 1, d); };
+const addDays = (d, n) => { const x = new Date(d); x.setDate(x.getDate() + n); return x; };
+const mondayOf = d => { const x = new Date(d.getFullYear(), d.getMonth(), d.getDate()); return addDays(x, -((x.getDay() + 6) % 7)); };
+const md = d => `${d.getMonth() + 1}/${d.getDate()}`;
+const DOW = ['月', '火', '水', '木', '金', '土', '日'];
+const dowOf = date => DOW[(parseYmd(date).getDay() + 6) % 7];
+const weekDates = w => Array.from({ length: 7 }, (_, i) => ymd(addDays(parseYmd(w), i)));
+
+const RECIPE_CATS = ['主菜', '副菜', '汁物', '主食', 'その他'];
+
+// 買い物リストの売り場カテゴリ（並び順＝売り場を回る順）
+const SHOP_CATS = ['野菜・果物', '肉', '魚介', '卵・乳製品', '豆腐・練り物', '主食・乾物', 'その他', '追加', '調味料'];
+const ING_WORDS = {
+  '野菜・果物': '玉ねぎ たまねぎ 玉葱 にんじん 人参 じゃがいも じゃが芋 キャベツ レタス トマト ミニトマト きゅうり なす ナス ピーマン もやし ほうれん草 小松菜 白菜 大根 ねぎ ネギ 長ねぎ 青ねぎ 万能ねぎ にら ニラ ブロッコリー かぼちゃ ごぼう れんこん しめじ えのき しいたけ 椎茸 まいたけ 舞茸 エリンギ きのこ 生姜 しょうが にんにく 大葉 水菜 アボカド レモン りんご バナナ さつまいも 里芋 長芋 山芋 オクラ ズッキーニ パプリカ セロリ アスパラ 豆苗 かいわれ みょうが パセリ とうもろこし コーン 枝豆 いちご みかん ゴーヤ チンゲン菜 青梗菜 春菊 三つ葉 カット野菜 サラダ菜 ベビーリーフ 野菜',
+  '肉': '豚 牛 鶏 ひき肉 挽肉 合挽 ミンチ ベーコン ハム ソーセージ ウインナー ささみ 手羽 肉',
+  '魚介': '鮭 さけ サーモン さば 鯖 あじ 鯵 いわし ぶり 鰤 たら 鱈 まぐろ かつお えび 海老 いか たこ あさり しじみ ほたて 帆立 しらす 刺身 魚',
+  '卵・乳製品': '卵 たまご 玉子 牛乳 チーズ バター ヨーグルト 生クリーム',
+  '豆腐・練り物': '豆腐 厚揚げ 油揚げ 納豆 こんにゃく ちくわ かまぼこ はんぺん さつま揚げ キムチ',
+  '主食・乾物': '米 ご飯 ごはん パン 食パン うどん そば パスタ スパゲッティ 麺 中華麺 焼きそば 小麦粉 薄力粉 片栗粉 パン粉 春雨 わかめ のり 海苔 昆布 かつお節 ごま 胡麻 餃子の皮 カレールー シチュールー ルー ツナ 缶 トマト缶',
+  '調味料': '醤油 しょうゆ 味噌 みそ 砂糖 塩 こしょう 胡椒 塩こしょう 酢 みりん 酒 料理酒 油 サラダ油 ごま油 オリーブオイル マヨネーズ ケチャップ ソース 中濃ソース だし 顆粒だし 白だし コンソメ 鶏ガラ 鶏がらスープ めんつゆ ポン酢 オイスターソース 豆板醤 コチュジャン カレー粉 はちみつ ドレッシング 焼肉のたれ わさび からし',
+};
+const ING_INDEX = Object.entries(ING_WORDS).flatMap(([cat, ws]) => ws.split(' ').map(w => [w, cat]));
+function guessCat(name) {
+  // 一番長く一致した単語のカテゴリ（「ごま油」→調味料、「油揚げ」→豆腐）
+  let best = null;
+  for (const [w, cat] of ING_INDEX) if (name.includes(w) && (!best || w.length > best[0].length)) best = [w, cat];
+  return best ? best[1] : 'その他';
+}
+
+// ============================================================
+// データと同期
+//   data: key → value のフラットな辞書
+//     rcp:<id>              料理 {name, cat, ings:[{n,a}], memo}
+//     meal:<YYYY-MM-DD>     その日の夕食 {dishes:[{r?, t}], note}
+//     ext:<週>:<id>         買い物の手動追加 {n}
+//     chk:<週>:<品目キー>   買い物のチェック 1
+//   変更は「キー単位の上書き」としてスプレッドシートへ送る。
+//   2人で同時に別の物を触っても潰し合わない。
+// ============================================================
+const K = { data: 'kondate.data', pending: 'kondate.pending', conf: 'kondate.conf', view: 'kondate.view' };
+let data = load(K.data, {});
+let pending = load(K.pending, []);
+let conf = load(K.conf, { url: '', key: '' });
+
+function applyOp(target, op) { if (op.v === null) delete target[op.k]; else target[op.k] = op.v; }
+function persist() { store(K.data, data); store(K.pending, pending); }
+
+function set(k, v) { setMany([[k, v]]); }
+function setMany(pairs) {
+  for (const [k, v] of pairs) { const op = { k, v: v ?? null }; applyOp(data, op); pending.push(op); }
+  persist();
+  render();
+  scheduleFlush();
+}
+
+let sync = { state: 'local', msg: '' };
+let flushTimer = null, busy = false, retryMs = 0;
+
+function setSync(state, msg = '') { sync = { state, msg }; renderSyncDot(); }
+
+async function api(body, c = conf) {
+  const res = await fetch(c.url, {
+    method: 'POST',
+    // text/plain にすると CORS のプリフライトが飛ばず、Apps Script でもそのまま通る
+    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+    body: JSON.stringify({ ...body, key: c.key }),
+  });
+  if (!res.ok) throw new Error('通信エラー（' + res.status + '）');
+  let j;
+  try { j = await res.json(); } catch { throw new Error('URLが正しくないかもしれません'); }
+  if (!j.ok) throw new Error(j.error === 'auth' ? '合言葉が違います' : (j.error || '不明なエラー'));
+  return j;
+}
+
+function acceptServer(items) {
+  const before = JSON.stringify(data);
+  data = items || {};
+  for (const op of pending) applyOp(data, op);
+  persist();
+  if (JSON.stringify(data) !== before) render();
+}
+
+function scheduleFlush(ms = 400) { clearTimeout(flushTimer); flushTimer = setTimeout(flush, ms); }
+
+// 未送信の変更があれば送り、なければ最新を取りに行く
+async function flush() {
+  if (!conf.url) { setSync('local'); return; }
+  if (busy) { scheduleFlush(500); return; }
+  busy = true;
+  const ops = pending.slice();
+  setSync('busy');
+  try {
+    const j = await api(ops.length ? { action: 'put', ops } : { action: 'get' });
+    pending = pending.slice(ops.length);
+    acceptServer(j.items);
+    setSync('ok');
+    retryMs = 0;
+    if (pending.length) scheduleFlush();
+  } catch (e) {
+    setSync('err', e.message);
+    retryMs = Math.min((retryMs || 5000) * 2, 60000);
+    scheduleFlush(retryMs);
+  } finally {
+    busy = false;
+  }
+}
+
+setInterval(() => { if (conf.url && !document.hidden && !busy && !pending.length) flush(); }, 15000);
+document.addEventListener('visibilitychange', () => { if (!document.hidden) flush(); });
+window.addEventListener('online', () => flush());
+
+// ============================================================
+// データの読み出し
+// ============================================================
+const recipe = id => (id ? data['rcp:' + id] : undefined);
+const recipes = () => Object.entries(data).filter(([k]) => k.startsWith('rcp:')).map(([k, v]) => ({ id: k.slice(4), ...v }));
+const meal = date => data['meal:' + date] || { dishes: [], note: '' };
+const dishName = d => recipe(d.r)?.name || d.t || '（名前なし）';
+const dishCat = d => recipe(d.r)?.cat || 'その他';
+
+function setMeal(date, m) {
+  const empty = !(m.dishes || []).length && !norm(m.note);
+  set('meal:' + date, empty ? null : { dishes: m.dishes || [], note: norm(m.note) });
+}
+
+function lastUsedMap() {
+  const map = {};
+  for (const [k, v] of Object.entries(data)) {
+    if (!k.startsWith('meal:')) continue;
+    const date = k.slice(5);
+    for (const d of v.dishes || []) if (d.r && (!map[d.r] || map[d.r] < date)) map[d.r] = date;
+  }
+  return map;
+}
+function lastUsedLabel(date) {
+  if (!date) return 'まだ作ってない';
+  const days = Math.round((parseYmd(date) - parseYmd(ymd(new Date()))) / 864e5);
+  if (days > 0) return `${md(parseYmd(date))} に予定`;
+  if (days === 0) return '今日';
+  return `${-days}日前`;
+}
+
+function knownIngredients() {
+  const s = new Set();
+  for (const r of recipes()) for (const i of r.ings || []) if (norm(i.n)) s.add(norm(i.n));
+  return [...s].sort((a, b) => a.localeCompare(b, 'ja'));
+}
+
+// ---- 分量の合算 ----
+const NUM = '(\\d+(?:\\.\\d+)?(?:\\/\\d+)?)';
+const parseNum = s => { if (s.includes('/')) { const [a, b] = s.split('/').map(Number); return b ? a / b : NaN; } return Number(s); };
+const fmtNum = n => String(Math.round(n * 100) / 100);
+function sumAmounts(list) {
+  const units = new Map(); // 単位 → {n, prefix}
+  const other = [];
+  for (const a of list) {
+    let m = a.match(new RegExp('^' + NUM + '\\s*(.*)$'));          // 200g, 1/2個
+    if (m && !isNaN(parseNum(m[1]))) { addUnit(m[2], parseNum(m[1]), false); continue; }
+    m = a.match(new RegExp('^(.*?)\\s*' + NUM + '$'));              // 大さじ2
+    if (m && !isNaN(parseNum(m[2]))) { addUnit(m[1], parseNum(m[2]), true); continue; }
+    other.push(a);                                                  // 少々、適量、2〜3個 など
+  }
+  function addUnit(unit, n, prefix) {
+    const key = (prefix ? '<' : '>') + unit;
+    const u = units.get(key) || { unit, n: 0, prefix };
+    u.n += n;
+    units.set(key, u);
+  }
+  return [
+    ...[...units.values()].map(u => (u.prefix ? u.unit + fmtNum(u.n) : fmtNum(u.n) + u.unit)),
+    ...new Set(other),
+  ].join(' ＋ ');
+}
+
+// 週の買い物リスト（料理から集計した分 ＋ 手動追加分）
+function shoppingList(week) {
+  const items = new Map();
+  const missing = [];
+  for (const date of weekDates(week)) {
+    for (const d of meal(date).dishes || []) {
+      const r = recipe(d.r);
+      if (!r) continue; // 登録していない料理（外食メモなど）は集計しない
+      if (!(r.ings || []).some(i => norm(i.n))) { missing.push({ id: d.r, name: r.name, dow: dowOf(date) }); continue; }
+      for (const ing of r.ings) {
+        const name = norm(ing.n);
+        if (!name) continue;
+        const key = name.toLowerCase();
+        let it = items.get(key);
+        if (!it) items.set(key, (it = { key, name, amounts: [], days: [], dishes: [], cat: guessCat(name) }));
+        if (norm(ing.a)) it.amounts.push(norm(ing.a));
+        if (!it.days.includes(dowOf(date))) it.days.push(dowOf(date));
+        if (!it.dishes.includes(r.name)) it.dishes.push(r.name);
+      }
+    }
+  }
+  const list = [...items.values()].map(it => ({ ...it, amount: sumAmounts(it.amounts) }));
+  const prefix = `ext:${week}:`;
+  for (const [k, v] of Object.entries(data)) {
+    if (k.startsWith(prefix)) list.push({ key: 'x:' + k.slice(prefix.length), extKey: k, name: v.n, amount: '', days: [], dishes: [], cat: '追加' });
+  }
+  for (const it of list) it.checked = !!data[`chk:${week}:${it.key}`];
+  list.sort((a, b) => SHOP_CATS.indexOf(a.cat) - SHOP_CATS.indexOf(b.cat) || a.name.localeCompare(b.name, 'ja'));
+  return { list, missing };
+}
+
+// ============================================================
+// 画面
+// ============================================================
+const VIEWS = ['plan', 'shop', 'recipes', 'settings'];
+const ui = { view: load(K.view, 'plan'), week: initialWeek(), recipeQuery: '' };
+if (!VIEWS.includes(ui.view)) ui.view = 'plan';
+
+// 週末（土日）に開いたら来週の献立を出す
+function initialWeek() {
+  const t = new Date();
+  const m = mondayOf(t);
+  return ymd(t.getDay() === 0 || t.getDay() === 6 ? addDays(m, 7) : m);
+}
+
+let dirty = false;
+function render(force = false) {
+  // 入力中に同期で画面が書き換わると文字が消えるので、入力が終わるまで待つ
+  const a = document.activeElement;
+  if (!force && a && a.closest('main') && /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName) && !/^(checkbox|radio)$/.test(a.type)) { dirty = true; return; }
+  dirty = false;
+  renderHeader();
+  for (const v of VIEWS) $('#view-' + v).hidden = v !== ui.view;
+  $$('.tabs button').forEach(b => b.classList.toggle('active', b.dataset.view === ui.view));
+  ({ plan: renderPlan, shop: renderShop, recipes: renderRecipes, settings: renderSettings })[ui.view]($('#view-' + ui.view));
+}
+document.addEventListener('focusout', () => setTimeout(() => { if (dirty) render(); }, 0));
+
+function renderHeader() {
+  const weekly = ui.view === 'plan' || ui.view === 'shop';
+  $('#weekNav').hidden = !weekly;
+  $('#pageTitle').hidden = weekly;
+  $('#pageTitle').textContent = ui.view === 'recipes' ? '料理リスト' : '設定';
+  if (weekly) {
+    const m = parseYmd(ui.week);
+    const diff = Math.round((m - mondayOf(new Date())) / 864e5 / 7);
+    $('#weekTitle').textContent = diff === 0 ? '今週' : diff === 1 ? '来週' : diff === -1 ? '先週' : diff > 0 ? `${diff}週間後` : `${-diff}週間前`;
+    $('#weekRange').textContent = `${md(m)}（月）〜 ${md(addDays(m, 6))}（日）`;
+  }
+  renderSyncDot();
+}
+
+function renderSyncDot() {
+  const el = $('#syncDot');
+  const label = { local: 'この端末だけに保存中', busy: '同期中…', ok: 'スプレッドシートと同期済み', err: '同期できていません：' + sync.msg }[sync.state];
+  el.className = 'sync-dot ' + sync.state;
+  el.title = label;
+  el.setAttribute('aria-label', label);
+}
+
+// ---- 献立 ----
+function renderPlan(el) {
+  const today = ymd(new Date());
+  const dates = weekDates(ui.week);
+  const total = dates.reduce((n, d) => n + (meal(d).dishes || []).length, 0);
+  el.innerHTML = `
+    <div class="days">
+      ${dates.map((date, i) => {
+        const m = meal(date);
+        return `
+        <div class="day${date === today ? ' today' : ''}${i >= 5 ? ' weekend' : ''}">
+          <button class="day-head" data-act="note" data-date="${date}" aria-label="${md(parseYmd(date))}のメモ">
+            <span class="dow">${DOW[i]}</span><span class="date">${md(parseYmd(date))}</span>
+          </button>
+          <div class="day-body">
+            ${m.note ? `<button class="note" data-act="note" data-date="${date}">📝 ${esc(m.note)}</button>` : ''}
+            <div class="dishes">
+              ${(m.dishes || []).map((d, j) => {
+                const r = recipe(d.r);
+                const warn = r && !(r.ings || []).some(x => norm(x.n));
+                return `<button class="dish c-${RECIPE_CATS.indexOf(dishCat(d))}" data-act="dish" data-date="${date}" data-i="${j}">
+                  ${esc(dishName(d))}${warn ? '<span class="warn" title="材料未登録">!</span>' : ''}</button>`;
+              }).join('')}
+              <button class="add" data-act="add" data-date="${date}">＋</button>
+            </div>
+          </div>
+        </div>`;
+      }).join('')}
+    </div>
+    <div class="plan-foot">
+      ${total === 0 ? `<button class="btn" data-act="copyPrevWeek">先週の献立をコピー</button>` : ''}
+      <button class="btn primary" data-act="goShop">🛒 この週の買い物リスト</button>
+    </div>`;
+}
+
+// ---- 買い物 ----
+function renderShop(el) {
+  const { list, missing } = shoppingList(ui.week);
+  const todo = list.filter(i => !i.checked);
+  const done = list.filter(i => i.checked);
+  const row = it => `
+    <div class="item${it.checked ? ' checked' : ''}">
+      <label>
+        <input type="checkbox" data-chk="${esc(it.key)}"${it.checked ? ' checked' : ''}>
+        <span class="iname">${esc(it.name)}</span>
+        ${it.amount ? `<span class="iamt">${esc(it.amount)}</span>` : ''}
+        ${it.days.length ? `<span class="idays" title="${esc(it.dishes.join('、'))}">${it.days.join('・')}</span>` : ''}
+      </label>
+      ${it.extKey ? `<button class="x" data-act="delExtra" data-k="${esc(it.extKey)}" aria-label="削除">×</button>` : ''}
+    </div>`;
+  const groups = SHOP_CATS.map(cat => {
+    const items = todo.filter(i => i.cat === cat);
+    if (!items.length) return '';
+    const title = cat === '調味料' ? '調味料 <small>家にあるか確認</small>' : cat;
+    return `<h3 class="grp">${title}</h3>${items.map(row).join('')}`;
+  }).join('');
+
+  el.innerHTML = `
+    ${list.length ? `
+      <div class="shop-head">
+        <div class="progress"><div style="width:${(done.length / list.length) * 100}%"></div></div>
+        <div class="shop-count">${done.length} / ${list.length}</div>
+      </div>` : ''}
+    ${missing.length ? `
+      <div class="callout">
+        材料が未登録の料理があります：
+        ${missing.map(m => `<button class="link" data-act="editRecipe" data-id="${m.id}">${esc(m.name)}（${m.dow}）</button>`).join('、')}
+      </div>` : ''}
+    <form class="add-extra" data-form="extra">
+      <input id="extraInput" name="n" placeholder="ほかに買うもの（洗剤・牛乳など）" autocomplete="off" enterkeyhint="done">
+      <button class="btn primary">追加</button>
+    </form>
+    ${list.length === 0 ? `<p class="empty">この週の献立に材料が登録された料理がまだありません。<br>献立を入れると、ここに材料が集まります。</p>` : ''}
+    ${groups}
+    ${!todo.length && list.length ? `<p class="empty">全部そろいました 🎉</p>` : ''}
+    ${done.length ? `<h3 class="grp muted">チェック済み</h3>${done.map(row).join('')}` : ''}
+    ${list.length ? `
+      <div class="plan-foot">
+        <button class="btn" data-act="shareList">リストを送る / コピー</button>
+        ${done.length ? `<button class="btn" data-act="uncheckAll">チェックを全部外す</button>` : ''}
+      </div>` : ''}`;
+}
+
+// ---- 料理リスト ----
+function renderRecipes(el) {
+  el.innerHTML = `
+    <div class="toolbar">
+      <input type="search" id="recipeQuery" placeholder="料理名・材料で検索" value="${esc(ui.recipeQuery)}" autocomplete="off">
+      <button class="btn primary" data-act="newRecipe">＋ 新しい料理</button>
+    </div>
+    <div id="recipeList"></div>`;
+  renderRecipeList();
+}
+function renderRecipeList() {
+  const box = $('#recipeList');
+  if (!box) return;
+  const q = norm(ui.recipeQuery).toLowerCase();
+  const last = lastUsedMap();
+  const all = recipes().filter(r => !q || norm(r.name).toLowerCase().includes(q) || (r.ings || []).some(i => norm(i.n).toLowerCase().includes(q)));
+  if (!recipes().length) { box.innerHTML = `<p class="empty">まだ料理がありません。<br>よく作る料理と材料を登録しておくと、買い物リストが自動で作れます。</p>`; return; }
+  if (!all.length) { box.innerHTML = `<p class="empty">見つかりませんでした</p>`; return; }
+  box.innerHTML = RECIPE_CATS.map(cat => {
+    const rs = all.filter(r => (r.cat || 'その他') === cat).sort((a, b) => a.name.localeCompare(b.name, 'ja'));
+    if (!rs.length) return '';
+    return `<h3 class="grp">${cat}</h3>` + rs.map(r => {
+      const n = (r.ings || []).filter(i => norm(i.n)).length;
+      return `<button class="recipe-row" data-act="editRecipe" data-id="${r.id}">
+        <span class="rname">${esc(r.name)}</span>
+        <span class="rmeta">${n ? `材料${n}品` : '<span class="warn-text">材料未登録</span>'} · ${lastUsedLabel(last[r.id])}</span>
+      </button>`;
+    }).join('');
+  }).join('');
+}
+
+// ---- 設定 ----
+function renderSettings(el) {
+  const status = { local: '⚪ この端末だけに保存しています', busy: '🟡 同期中…', ok: '🟢 スプレッドシートと同期しています', err: '🔴 同期できていません：' + esc(sync.msg) }[sync.state];
+  el.innerHTML = `
+    <div class="card">
+      <h2>2人で共有（Googleスプレッドシート）</h2>
+      <p class="status">${status}</p>
+      <label class="field">Apps Script の URL
+        <input id="cfUrl" type="url" placeholder="https://script.google.com/macros/s/…/exec" value="${esc(conf.url)}" autocomplete="off">
+      </label>
+      <label class="field">合言葉
+        <input id="cfKey" type="text" value="${esc(conf.key)}" autocomplete="off">
+      </label>
+      <div class="row">
+        <button class="btn primary" data-act="saveConf">保存して接続</button>
+        ${conf.url ? `<button class="btn" data-act="disconnect">接続をやめる</button>` : ''}
+      </div>
+      <p class="hint">設定のしかたは <a href="https://github.com/Haru-1124189/kondate#readme" target="_blank" rel="noopener">README</a> を見てください。</p>
+    </div>
+    ${conf.url ? `
+    <div class="card">
+      <h2>相手のスマホを設定</h2>
+      <p>このリンクをLINEなどで送って、相手に開いてもらうだけで設定が終わります。<br><small>※合言葉が入っているので、他の人には送らないでください。</small></p>
+      <button class="btn" data-act="shareSetup">設定リンクを送る</button>
+    </div>` : ''}
+    <div class="card">
+      <h2>バックアップ</h2>
+      <div class="row">
+        <button class="btn" data-act="export">ファイルに書き出す</button>
+        <label class="btn">ファイルから読み込む<input type="file" id="importFile" accept="application/json,.json" hidden></label>
+      </div>
+      <p class="hint">料理 ${recipes().length} 品 ・ 献立 ${Object.keys(data).filter(k => k.startsWith('meal:')).length} 日分</p>
+    </div>`;
+}
+
+// ============================================================
+// 下から出るシート（ダイアログ）
+// ============================================================
+const sheet = $('#sheet');
+let sheetCtx = {};
+function openSheet(html, ctx = {}) {
+  sheetCtx = ctx;
+  sheet.innerHTML = html;
+  if (!sheet.open) sheet.showModal();
+}
+function closeSheet() { if (sheet.open) sheet.close(); sheetCtx = {}; }
+sheet.addEventListener('click', e => { if (e.target === sheet) closeSheet(); }); // 背景タップで閉じる
+const dayLabel = date => `${md(parseYmd(date))}（${dowOf(date)}）`;
+
+// 料理を選んで献立に入れる
+function openPicker(date) {
+  openSheet(`
+    <div class="sheet-body">
+      <h2>${dayLabel(date)} の夕食に追加</h2>
+      <input type="search" id="pickQuery" placeholder="料理名で検索 / 新しい料理名を入力" autocomplete="off" enterkeyhint="search">
+      <div id="pickList" class="pick-list"></div>
+      <div class="sheet-actions"><button class="btn" data-act="close">閉じる</button></div>
+    </div>`, { date });
+  renderPickList();
+  $('#pickQuery').addEventListener('input', renderPickList);
+}
+function renderPickList() {
+  const q = norm($('#pickQuery')?.value);
+  const ql = q.toLowerCase();
+  const last = lastUsedMap();
+  const today = ymd(new Date());
+  const rs = recipes().filter(r => !ql || norm(r.name).toLowerCase().includes(ql));
+  // 最近作っていない順（献立のマンネリ防止）
+  rs.sort((a, b) => (last[a.id] || '') .localeCompare(last[b.id] || '') || a.name.localeCompare(b.name, 'ja'));
+  const exact = rs.some(r => norm(r.name) === q);
+  $('#pickList').innerHTML = `
+    ${q && !exact ? `
+      <button class="pick new" data-act="pickNew" data-name="${esc(q)}">＋「${esc(q)}」を料理として登録<small>材料も入れておくと買い物リストに出ます</small></button>
+      <button class="pick new" data-act="pickText" data-name="${esc(q)}">✎「${esc(q)}」を名前だけで追加<small>外食・お惣菜など、材料がいらないとき</small></button>` : ''}
+    ${!recipes().length && !q ? `<p class="empty">料理名を入力して登録しましょう</p>` : ''}
+    ${rs.map(r => {
+      const lu = last[r.id];
+      return `<button class="pick c-${RECIPE_CATS.indexOf(r.cat || 'その他')}" data-act="pickRecipe" data-id="${r.id}">
+        <span>${esc(r.name)}</span><small>${esc(r.cat || 'その他')} · ${lu && lu > today ? `${md(parseYmd(lu))} に予定` : lastUsedLabel(lu)}</small></button>`;
+    }).join('')}`;
+}
+function addDish(date, dish) {
+  const m = meal(date);
+  setMeal(date, { ...m, dishes: [...(m.dishes || []), dish] });
+}
+
+// 献立の料理をタップ
+function openDish(date, i) {
+  const d = (meal(date).dishes || [])[i];
+  if (!d) return;
+  const r = recipe(d.r);
+  const ings = (r?.ings || []).filter(x => norm(x.n));
+  const memo = r?.memo ? esc(r.memo).replace(/(https?:\/\/[^\s<]+)/g, '<a href="$1" target="_blank" rel="noopener">$1</a>').replace(/\n/g, '<br>') : '';
+  const week = mondayOf(parseYmd(date));
+  const moveOpts = Array.from({ length: 21 }, (_, k) => ymd(addDays(week, k - 7)))
+    .map(x => `<option value="${x}"${x === date ? ' selected' : ''}>${dayLabel(x)}</option>`).join('');
+  openSheet(`
+    <div class="sheet-body">
+      <h2>${esc(dishName(d))}</h2>
+      <p class="sub">${dayLabel(date)}${r ? ' · ' + esc(r.cat || 'その他') : ''}</p>
+      ${r ? (ings.length
+        ? `<ul class="ing-view">${ings.map(x => `<li><span>${esc(x.n)}</span><span>${esc(x.a || '')}</span></li>`).join('')}</ul>`
+        : `<p class="callout">材料が未登録です。登録すると買い物リストに出ます。</p>`)
+        : `<p class="hint">名前だけの予定です（買い物リストには出ません）</p>`}
+      ${memo ? `<div class="memo">${memo}</div>` : ''}
+      <label class="field">別の日に移動
+        <select id="moveTo">${moveOpts}</select>
+      </label>
+      <div class="sheet-actions">
+        <button class="btn danger" data-act="removeDish">献立から外す</button>
+        <span class="spacer"></span>
+        ${r ? `<button class="btn" data-act="editRecipe" data-id="${d.r}">材料を編集</button>`
+            : `<button class="btn" data-act="promoteDish">料理として登録</button>`}
+        <button class="btn primary" data-act="close">閉じる</button>
+      </div>
+    </div>`, { date, i });
+  $('#moveTo').addEventListener('change', e => {
+    const to = e.target.value;
+    if (to === date) return;
+    const from = meal(date);
+    const dish = from.dishes[i];
+    setMeal(date, { ...from, dishes: from.dishes.filter((_, k) => k !== i) });
+    addDish(to, dish);
+    closeSheet();
+    toast(`${dayLabel(to)} に移動しました`);
+  });
+}
+
+// その日のメモ
+function openNote(date) {
+  const m = meal(date);
+  openSheet(`
+    <form class="sheet-body" data-form="note">
+      <h2>${dayLabel(date)} のメモ</h2>
+      <input id="noteInput" name="note" value="${esc(m.note || '')}" placeholder="外食・残り物・お弁当いらない など" autocomplete="off">
+      <div class="chips">${['外食', '残り物', 'お惣菜', '帰り遅い', '未定'].map(t => `<button type="button" class="chip" data-act="noteChip" data-t="${t}">${t}</button>`).join('')}</div>
+      <div class="sheet-actions">
+        ${m.note ? `<button type="button" class="btn danger" data-act="clearNote">メモを消す</button>` : ''}
+        <span class="spacer"></span>
+        <button type="button" class="btn" data-act="close">キャンセル</button>
+        <button class="btn primary">保存</button>
+      </div>
+    </form>`, { date });
+}
+
+// 料理の登録・編集
+function openRecipeEditor(id, opts = {}) {
+  const r = id ? recipe(id) : null;
+  const ings = r?.ings?.length ? r.ings : [{ n: '', a: '' }, { n: '', a: '' }, { n: '', a: '' }];
+  $('#ingList').innerHTML = knownIngredients().map(n => `<option value="${esc(n)}">`).join('');
+  openSheet(`
+    <form class="sheet-body" data-form="recipe">
+      <h2>${r ? '料理を編集' : '料理を登録'}</h2>
+      <label class="field">料理名
+        <input name="name" required value="${esc(r?.name || opts.name || '')}" autocomplete="off">
+      </label>
+      <div class="field">種類
+        <div class="seg">${RECIPE_CATS.map(c => `<label><input type="radio" name="cat" value="${c}"${(r?.cat || opts.cat || '主菜') === c ? ' checked' : ''}><span>${c}</span></label>`).join('')}</div>
+      </div>
+      <div class="field">材料 <small>（1回に作る分の量）</small>
+        <div id="ings">${ings.map(ingRow).join('')}</div>
+        <button type="button" class="btn small" data-act="addIng">＋ 材料を追加</button>
+      </div>
+      <label class="field">メモ・レシピのURL
+        <textarea name="memo" rows="3" placeholder="作り方のコツや、レシピサイトのURLなど">${esc(r?.memo || '')}</textarea>
+      </label>
+      <div class="sheet-actions">
+        ${r ? `<button type="button" class="btn danger" data-act="deleteRecipe">削除</button>` : ''}
+        <span class="spacer"></span>
+        <button type="button" class="btn" data-act="close">キャンセル</button>
+        <button class="btn primary">保存</button>
+      </div>
+    </form>`, { id, ...opts });
+  if (!r) $('input[name=name]', sheet).focus();
+}
+function ingRow(i = { n: '', a: '' }) {
+  return `<div class="ing">
+    <input class="ing-n" list="ingList" placeholder="材料" value="${esc(i.n)}" autocomplete="off" enterkeyhint="next">
+    <input class="ing-a" placeholder="量 (例: 200g)" value="${esc(i.a)}" autocomplete="off" enterkeyhint="next">
+    <button type="button" class="x" data-act="rmIng" aria-label="この材料を消す">×</button>
+  </div>`;
+}
+function appendIngRow() {
+  $('#ings').insertAdjacentHTML('beforeend', ingRow());
+  const rows = $$('#ings .ing');
+  $('.ing-n', rows[rows.length - 1]).focus();
+}
+// 量の欄で Enter → 次の行へ
+sheet.addEventListener('keydown', e => {
+  if (e.key !== 'Enter' || e.isComposing) return;
+  const t = e.target;
+  if (t.classList.contains('ing-n')) { e.preventDefault(); $('.ing-a', t.closest('.ing')).focus(); }
+  else if (t.classList.contains('ing-a')) {
+    e.preventDefault();
+    const next = t.closest('.ing').nextElementSibling;
+    next ? $('.ing-n', next).focus() : appendIngRow();
+  }
+});
+
+// ============================================================
+// 操作
+// ============================================================
+let toastTimer;
+function toast(msg) {
+  const el = $('#toast');
+  el.textContent = msg;
+  el.hidden = false;
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => (el.hidden = true), 2200);
+}
+
+async function shareText(text, title) {
+  if (navigator.share) {
+    try { await navigator.share({ title, text }); return; } catch (e) { if (e.name === 'AbortError') return; }
+  }
+  try { await navigator.clipboard.writeText(text); toast('コピーしました'); }
+  catch { prompt('コピーしてください', text); }
+}
+
+const b64e = s => btoa(String.fromCharCode(...new TextEncoder().encode(s))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+const b64d = s => new TextDecoder().decode(Uint8Array.from(atob(s.replace(/-/g, '+').replace(/_/g, '/')), c => c.charCodeAt(0)));
+
+async function connect(newConf) {
+  const test = await api({ action: 'get' }, newConf); // 先に疎通確認
+  const localKeys = Object.keys(data);
+  const serverKeys = Object.keys(test.items || {});
+  conf = newConf;
+  store(K.conf, conf);
+  if (localKeys.length && serverKeys.length) {
+    if (confirm('この端末のデータを、スプレッドシートのデータと合わせますか？\n\nOK：両方のデータを合わせる\nキャンセル：スプレッドシートの内容に置き換える')) {
+      pending = localKeys.map(k => ({ k, v: data[k] }));
+    } else pending = [];
+  } else if (localKeys.length) {
+    pending = localKeys.map(k => ({ k, v: data[k] }));
+  } else pending = [];
+  if (!pending.length) acceptServer(test.items);
+  persist();
+  await flush();
+}
+
+const actions = {
+  close: () => closeSheet(),
+
+  // 献立
+  add: b => openPicker(b.dataset.date),
+  dish: b => openDish(b.dataset.date, Number(b.dataset.i)),
+  note: b => openNote(b.dataset.date),
+  goShop: () => switchView('shop'),
+  copyPrevWeek: () => {
+    const prev = weekDates(ymd(addDays(parseYmd(ui.week), -7)));
+    const pairs = weekDates(ui.week).map((d, i) => [d, meal(prev[i])]).filter(([, m]) => (m.dishes || []).length || m.note);
+    if (!pairs.length) return toast('先週の献立がありません');
+    setMany(pairs.map(([d, m]) => ['meal:' + d, { dishes: m.dishes || [], note: m.note || '' }]));
+    toast('先週の献立をコピーしました');
+  },
+  pickRecipe: b => {
+    const r = recipe(b.dataset.id);
+    addDish(sheetCtx.date, { r: b.dataset.id, t: r?.name || '' });
+    closeSheet();
+  },
+  pickText: b => { addDish(sheetCtx.date, { t: b.dataset.name }); closeSheet(); },
+  pickNew: b => openRecipeEditor(null, { name: b.dataset.name, addTo: sheetCtx.date }),
+  removeDish: () => {
+    const { date, i } = sheetCtx;
+    const m = meal(date);
+    setMeal(date, { ...m, dishes: m.dishes.filter((_, k) => k !== i) });
+    closeSheet();
+  },
+  promoteDish: () => {
+    const { date, i } = sheetCtx;
+    openRecipeEditor(null, { name: meal(date).dishes[i]?.t || '', replace: { date, i } });
+  },
+  noteChip: b => { const inp = $('#noteInput'); inp.value = b.dataset.t; inp.focus(); },
+  clearNote: () => { setMeal(sheetCtx.date, { ...meal(sheetCtx.date), note: '' }); closeSheet(); },
+
+  // 料理
+  newRecipe: () => openRecipeEditor(null),
+  editRecipe: b => openRecipeEditor(b.dataset.id),
+  addIng: () => appendIngRow(),
+  rmIng: b => b.closest('.ing').remove(),
+  deleteRecipe: () => {
+    const r = recipe(sheetCtx.id);
+    if (!confirm(`「${r.name}」を削除しますか？\n（献立に入っている分は名前だけ残ります）`)) return;
+    set('rcp:' + sheetCtx.id, null);
+    closeSheet();
+  },
+
+  // 買い物
+  delExtra: b => {
+    const k = b.dataset.k;
+    const week = k.split(':')[1];
+    setMany([[k, null], [`chk:${week}:x:${k.split(':')[2]}`, null]]);
+  },
+  uncheckAll: () => {
+    const prefix = `chk:${ui.week}:`;
+    setMany(Object.keys(data).filter(k => k.startsWith(prefix)).map(k => [k, null]));
+  },
+  shareList: () => {
+    const { list } = shoppingList(ui.week);
+    const todo = list.filter(i => !i.checked);
+    const m = parseYmd(ui.week);
+    const lines = [`【${md(m)}〜${md(addDays(m, 6))} の買い物】`];
+    for (const cat of SHOP_CATS) {
+      const items = todo.filter(i => i.cat === cat);
+      if (!items.length) continue;
+      lines.push('', `■ ${cat}`);
+      for (const it of items) lines.push(`・${it.name}${it.amount ? ' ' + it.amount : ''}`);
+    }
+    shareText(lines.join('\n'), '買い物リスト');
+  },
+
+  // 設定
+  saveConf: async () => {
+    const url = norm($('#cfUrl').value);
+    const key = $('#cfKey').value.trim();
+    if (!/^https:\/\/script\.google(usercontent)?\.com\//.test(url)) return toast('Apps Script の URL を入れてください');
+    if (!key) return toast('合言葉を入れてください');
+    setSync('busy');
+    try {
+      await connect({ url, key });
+      toast('つながりました');
+    } catch (e) {
+      setSync(conf.url ? 'err' : 'local', e.message);
+      alert('接続できませんでした：' + e.message);
+    }
+    render(true);
+  },
+  disconnect: () => {
+    if (!confirm('スプレッドシートとの同期をやめますか？\n（この端末のデータは残ります）')) return;
+    conf = { url: '', key: '' };
+    store(K.conf, conf);
+    pending = [];
+    persist();
+    setSync('local');
+    render(true);
+  },
+  shareSetup: () => {
+    const link = location.origin + location.pathname + '#s=' + b64e(JSON.stringify({ u: conf.url, k: conf.key }));
+    shareText(`献立アプリの設定リンクです。開くと同期の設定が終わります。\n${link}`, 'こんだて 設定');
+  },
+  export: () => {
+    const blob = new Blob([JSON.stringify({ app: 'kondate', at: new Date().toISOString(), data }, null, 1)], { type: 'application/json' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `kondate-${ymd(new Date())}.json`;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  },
+};
+
+const forms = {
+  note: f => { setMeal(sheetCtx.date, { ...meal(sheetCtx.date), note: f.elements.note.value }); closeSheet(); },
+  extra: f => {
+    const n = norm(f.elements.n.value);
+    if (!n) return;
+    set(`ext:${ui.week}:${uid()}`, { n });
+    render(true);
+    $('#extraInput').focus(); // 続けて入力できるように
+  },
+  recipe: f => {
+    const name = norm(f.elements.name.value);
+    if (!name) return;
+    const ings = $$('#ings .ing').map(row => ({ n: norm($('.ing-n', row).value), a: norm($('.ing-a', row).value) })).filter(i => i.n);
+    const ctx = sheetCtx;
+    const id = ctx.id || uid();
+    const value = { name, cat: f.elements.cat.value || 'その他', ings, memo: f.elements.memo.value.trim() };
+    if (ctx.addTo) {
+      setMany([['rcp:' + id, value], ['meal:' + ctx.addTo, { ...meal(ctx.addTo), dishes: [...(meal(ctx.addTo).dishes || []), { r: id, t: name }] }]]);
+    } else if (ctx.replace) {
+      const m = meal(ctx.replace.date);
+      const dishes = m.dishes.map((d, k) => (k === ctx.replace.i ? { r: id, t: name } : d));
+      setMany([['rcp:' + id, value], ['meal:' + ctx.replace.date, { ...m, dishes }]]);
+    } else {
+      set('rcp:' + id, value);
+    }
+    closeSheet();
+    toast(ctx.id ? '保存しました' : `「${name}」を登録しました`);
+  },
+};
+
+function switchView(v) {
+  ui.view = v;
+  store(K.view, v);
+  window.scrollTo(0, 0);
+  render(true);
+}
+
+document.addEventListener('click', e => {
+  const b = e.target.closest('[data-act]');
+  if (b && actions[b.dataset.act]) { e.preventDefault(); actions[b.dataset.act](b, e); }
+});
+document.addEventListener('submit', e => {
+  const fn = forms[e.target.dataset.form];
+  if (fn) { e.preventDefault(); fn(e.target); }
+});
+document.addEventListener('change', e => {
+  const t = e.target;
+  if (t.dataset.chk) {
+    const k = `chk:${ui.week}:${t.dataset.chk}`;
+    set(k, t.checked ? 1 : null);
+    render(true);
+  } else if (t.id === 'importFile' && t.files[0]) {
+    t.files[0].text().then(txt => {
+      const j = JSON.parse(txt);
+      const d = j.data || j;
+      const keys = Object.keys(d).filter(k => /^(rcp|meal|ext|chk):/.test(k));
+      if (!keys.length) throw new Error('empty');
+      if (!confirm(`${keys.length} 件のデータを読み込みますか？（今のデータに上書き・追加されます）`)) return;
+      setMany(keys.map(k => [k, d[k]]));
+      toast('読み込みました');
+    }).catch(() => alert('このファイルは読み込めませんでした'));
+    t.value = '';
+  }
+});
+document.addEventListener('input', e => {
+  if (e.target.id === 'recipeQuery') { ui.recipeQuery = e.target.value; renderRecipeList(); }
+});
+
+$$('.tabs button').forEach(b => b.addEventListener('click', () => switchView(b.dataset.view)));
+$('#prevWeek').addEventListener('click', () => { ui.week = ymd(addDays(parseYmd(ui.week), -7)); render(true); });
+$('#nextWeek').addEventListener('click', () => { ui.week = ymd(addDays(parseYmd(ui.week), 7)); render(true); });
+$('#weekLabel').addEventListener('click', () => { ui.week = ymd(mondayOf(new Date())); render(true); });
+$('#syncDot').addEventListener('click', () => { if (sync.state !== 'busy') flush(); switchView('settings'); });
+
+// ============================================================
+// 起動
+// ============================================================
+
+// 設定リンク（#s=...）から開かれたら、同期の設定を取り込む
+async function readSetupHash() {
+  const m = location.hash.match(/^#s=([\w-]+)/);
+  if (!m) return;
+  history.replaceState(null, '', location.pathname + location.search);
+  let c;
+  try { c = JSON.parse(b64d(m[1])); } catch { alert('設定リンクが壊れているようです'); return; }
+  if (!c.u) return;
+  if (conf.url === c.u && conf.key === c.k) return toast('すでに設定済みです');
+  if (!confirm('共有の設定を読み込みますか？\n（2人で同じ献立・買い物リストを使えるようになります）')) return;
+  try { await connect({ url: c.u, key: c.k || '' }); toast('設定できました'); }
+  catch (e) { alert('接続できませんでした：' + e.message); }
+  render(true);
+}
+
+// 古い買い物チェック（2か月以上前）は片づける
+function pruneOld() {
+  const limit = ymd(addDays(mondayOf(new Date()), -56));
+  const old = Object.keys(data).filter(k => /^(chk|ext):/.test(k) && k.split(':')[1] < limit);
+  if (old.length) setMany(old.map(k => [k, null]));
+}
+
+setSync(conf.url ? 'busy' : 'local');
+render(true);
+readSetupHash();
+if (conf.url) flush().then(pruneOld);
+else pruneOld();
