@@ -10,7 +10,8 @@ self.addEventListener('fetch', e => {
   const req = e.request;
   if (req.method !== 'GET' || new URL(req.url).origin !== location.origin) return;
   e.respondWith(
-    fetch(req)
+    // no-cache：ブラウザが覚えとるファイルでも、毎回「変わってへん？」と GitHub に確認する（変わってなければ一瞬で終わる）
+    fetch(req, { cache: 'no-cache' })
       .then(res => {
         if (res.ok) {
           const copy = res.clone();

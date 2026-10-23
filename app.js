@@ -1,5 +1,8 @@
 'use strict';
 
+// index.html の app.js?v=N の N（設定画面に出す）
+const APP_VERSION = (document.currentScript && new URL(document.currentScript.src).searchParams.get('v')) || '?';
+
 // ============================================================
 // 小道具
 // ============================================================
@@ -573,6 +576,11 @@ function renderSettings(el) {
         <label class="btn">ファイルから読み込む<input type="file" id="importFile" accept="application/json,.json" hidden></label>
       </div>
       <p class="hint">料理 ${recipes().length} 品 ・ 献立 ${Object.keys(data).filter(k => k.startsWith('meal:')).length} 日分</p>
+    </div>
+    <div class="card">
+      <h2>アプリの更新</h2>
+      <p class="hint">今のバージョン：${esc(APP_VERSION)}。古い画面のままな気がしたら押してくれや。</p>
+      <button class="btn" data-act="reloadApp">最新にする</button>
     </div>`;
 }
 
@@ -1105,6 +1113,11 @@ const actions = {
       alert('つながらんかった：' + e.message);
     }
     render(true);
+  },
+  reloadApp: async () => {
+    // サービスワーカーの更新も確認してから読み込み直す
+    try { const reg = await navigator.serviceWorker?.getRegistration(); await reg?.update(); } catch { /* なくてもええ */ }
+    location.reload();
   },
   pasteSetup: async () => {
     const m = $('#setupLink').value.match(/#s=([\w-]+)/);
