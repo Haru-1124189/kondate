@@ -20,6 +20,15 @@ function doGet() {
 }
 
 function doPost(e) {
+  // 途中でエラーになっても Google のエラー画面やなく JSON で返す（アプリ側で「Failed to fetch」にならんように）
+  try {
+    return handle_(e);
+  } catch (err) {
+    return out_({ ok: false, error: 'スクリプトでエラー：' + (err && err.message || err) });
+  }
+}
+
+function handle_(e) {
   let req;
   try {
     req = JSON.parse(e.postData.contents);
@@ -30,12 +39,13 @@ function doPost(e) {
   if (/^ここを合言/.test(PASSWORD)) return out_({ ok: false, error: 'Code.gs の PASSWORD 変えてくれや' });
   if (req.key !== PASSWORD) return out_({ ok: false, error: 'auth' });
 
+  // 2人が同時に書くとシートが壊れるので順番待ち。空かんかったら「混んどる」で返す（アプリがあとで送り直す）
   const lock = LockService.getScriptLock();
-  lock.waitLock(20000);
+  if (!lock.tryLock(25000)) return out_({ ok: false, error: '混んどる' });
   try {
     const sh = sheet_();
-    if (req.action === 'put') write_(sh, req.ops || []);
-    return out_({ ok: true, items: read_(sh) });
+    const items = req.action === 'put' ? write_(sh, req.ops || []) : read_(sh);
+    return out_({ ok: true, items: items });
   } finally {
     lock.releaseLock();
   }
@@ -70,31 +80,40 @@ function read_(sh) {
   return items;
 }
 
+// 全部の行をいっぺんに読んで、手元で書き換えて、いっぺんに書き戻す
+// （1行ずつ書くと何百件のときにえらい時間がかかって、相手の送信が順番待ちで失敗する）
 function write_(sh, ops) {
   // 同じキーへの操作は最後のものだけ使う
   const latest = {};
   ops.forEach(function (op) { if (op && op.k) latest[op.k] = op.v; });
 
   const n = sh.getLastRow() - 1;
-  const keys = n > 0 ? sh.getRange(2, 1, n, 1).getValues().map(function (r) { return r[0]; }) : [];
-  const rowOf = {};
-  keys.forEach(function (k, i) { rowOf[k] = i + 2; });
+  const rows = n > 0 ? sh.getRange(2, 1, n, 4).getValues() : [];
+  const index = {};
+  rows.forEach(function (r, i) { if (r[0]) index[r[0]] = i; });
 
   const now = new Date();
-  const adds = [];
-  const dels = [];
   Object.keys(latest).forEach(function (k) {
     const v = latest[k];
     if (v === null || v === undefined) {
-      if (rowOf[k]) dels.push(rowOf[k]);
+      if (k in index) rows[index[k]] = null;
       return;
     }
     const row = [k, JSON.stringify(v), now, describe_(k, v)];
-    if (rowOf[k]) sh.getRange(rowOf[k], 1, 1, 4).setValues([row]);
-    else adds.push(row);
+    if (k in index) rows[index[k]] = row;
+    else { index[k] = rows.length; rows.push(row); }
   });
-  if (adds.length) sh.getRange(sh.getLastRow() + 1, 1, adds.length, 4).setValues(adds);
-  dels.sort(function (a, b) { return b - a; }).forEach(function (r) { sh.deleteRow(r); });
+
+  const out = rows.filter(function (r) { return r && r[0]; });
+  if (n > 0) sh.getRange(2, 1, n, 4).clearContent();
+  if (out.length) sh.getRange(2, 1, out.length, 4).setValues(out);
+
+  // 書いた内容からそのまま返す（読み直さんで済む）
+  const items = {};
+  out.forEach(function (r) {
+    try { items[r[0]] = JSON.parse(r[1]); } catch (err) { /* 壊れた行は無視 */ }
+  });
+  return items;
 }
 
 // スプレッドシートを直接見たときに分かりやすいように

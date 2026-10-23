@@ -80,12 +80,18 @@ function setSync(state, msg = '') {
 }
 
 async function api(body, c = conf) {
-  const res = await fetch(c.url, {
-    method: 'POST',
-    // text/plain にすると CORS のプリフライトが飛ばず、Apps Script でもそのまま通る
-    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-    body: JSON.stringify({ ...body, key: c.key }),
-  });
+  let res;
+  try {
+    res = await fetch(c.url, {
+      method: 'POST',
+      // text/plain にすると CORS のプリフライトが飛ばず、Apps Script でもそのまま通る
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({ ...body, key: c.key }),
+    });
+  } catch {
+    // 電波がないか、Apps Script がエラー画面を返したとき（Failed to fetch）
+    throw new Error('つながらん（電波か、Apps Script 側の問題）');
+  }
   if (!res.ok) throw new Error('通信エラー（' + res.status + '）');
   let j;
   try { j = await res.json(); } catch { throw new Error('URL違うかもしれん'); }
@@ -119,6 +125,11 @@ async function flush() {
     retryMs = 0;
     if (pending.length) scheduleFlush();
   } catch (e) {
+    if (e.message === '混んどる') {
+      // 相手が送っとる最中なだけ。黄色のまま、ちょっと待って送り直す
+      scheduleFlush(2000 + Math.random() * 2000);
+      return;
+    }
     setSync('err', e.message);
     retryMs = Math.min((retryMs || 5000) * 2, 60000);
     scheduleFlush(retryMs);
