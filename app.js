@@ -52,7 +52,7 @@ function guessCat(name) {
 //   変更は「キー単位の上書き」としてスプレッドシートへ送る。
 //   2人で同時に別の物を触っても潰し合わない。
 // ============================================================
-const K = { data: 'kondate.data', pending: 'kondate.pending', conf: 'kondate.conf', view: 'kondate.view' };
+const K = { data: 'kondate.data', pending: 'kondate.pending', conf: 'kondate.conf', view: 'kondate.view', shopMode: 'kondate.shopMode' };
 let data = load(K.data, {});
 let pending = load(K.pending, []);
 let conf = load(K.conf, { url: '', key: '' });
@@ -187,35 +187,53 @@ function sumAmounts(list) {
   ].join(' ＋ ');
 }
 
-// 週の買い物リスト（料理から集計した分 ＋ 手動追加分）
+// 週の買い物データ
+//   料理ごと：その日のその料理に必要な材料（チェックは料理×材料ごと）
+//   まとめて：同じ材料を週で合算（チェックは中の全部をまとめて付け外し）
 function shoppingList(week) {
-  const items = new Map();
+  const chk = ck => !!data[`chk:${week}:${ck}`];
+  const days = [];
   const missing = [];
   for (const date of weekDates(week)) {
+    const dishes = [];
     for (const d of meal(date).dishes || []) {
       const r = recipe(d.r);
-      if (!r) continue; // 登録していない料理（外食メモなど）は集計しない
-      if (!(r.ings || []).some(i => norm(i.n))) { missing.push({ id: d.r, name: r.name, dow: dowOf(date) }); continue; }
-      for (const ing of r.ings) {
-        const name = norm(ing.n);
-        if (!name) continue;
-        const key = name.toLowerCase();
-        let it = items.get(key);
-        if (!it) items.set(key, (it = { key, name, amounts: [], days: [], dishes: [], cat: guessCat(name) }));
-        if (norm(ing.a)) it.amounts.push(norm(ing.a));
-        if (!it.days.includes(dowOf(date))) it.days.push(dowOf(date));
-        if (!it.dishes.includes(r.name)) it.dishes.push(r.name);
-      }
+      if (!r) continue; // 登録していない料理（外食メモなど）は材料なし
+      const ings = (r.ings || []).filter(i => norm(i.n)).map(i => {
+        const name = norm(i.n);
+        const ck = `d:${date}:${d.r}:${name.toLowerCase()}`;
+        return { name, key: name.toLowerCase(), amount: norm(i.a), cat: guessCat(name), cks: [ck], checked: chk(ck) };
+      });
+      if (!ings.length) missing.push({ id: d.r, name: r.name, dow: dowOf(date) });
+      dishes.push({ id: d.r, name: r.name, cat: r.cat || 'その他', ings });
     }
+    if (dishes.length) days.push({ date, dishes, note: meal(date).note });
   }
-  const list = [...items.values()].map(it => ({ ...it, amount: sumAmounts(it.amounts) }));
+
+  const agg = new Map();
+  for (const day of days) for (const dish of day.dishes) for (const i of dish.ings) {
+    let it = agg.get(i.key);
+    if (!it) agg.set(i.key, (it = { name: i.name, cat: i.cat, amounts: [], days: [], dishes: [], cks: [], done: 0 }));
+    if (i.amount) it.amounts.push(i.amount);
+    const dw = dowOf(day.date);
+    if (!it.days.includes(dw)) it.days.push(dw);
+    if (!it.dishes.includes(dish.name)) it.dishes.push(dish.name);
+    it.cks.push(...i.cks);
+    if (i.checked) it.done++;
+  }
+  const list = [...agg.values()].map(it => ({ ...it, amount: sumAmounts(it.amounts), checked: it.done === it.cks.length }));
+
   const prefix = `ext:${week}:`;
-  for (const [k, v] of Object.entries(data)) {
-    if (k.startsWith(prefix)) list.push({ key: 'x:' + k.slice(prefix.length), extKey: k, name: v.n, amount: '', days: [], dishes: [], cat: '追加' });
-  }
-  for (const it of list) it.checked = !!data[`chk:${week}:${it.key}`];
+  const extras = Object.entries(data).filter(([k]) => k.startsWith(prefix)).map(([k, v]) => {
+    const ck = 'x:' + k.slice(prefix.length);
+    return { name: v.n, cat: '追加', amount: '', days: [], dishes: [], extKey: k, cks: [ck], checked: chk(ck) };
+  });
+  list.push(...extras);
   list.sort((a, b) => SHOP_CATS.indexOf(a.cat) - SHOP_CATS.indexOf(b.cat) || a.name.localeCompare(b.name, 'ja'));
-  return { list, missing };
+
+  // 進み具合は「料理×材料」単位で数える（どちらの表示でも同じ数字になるように）
+  const all = [...days.flatMap(d => d.dishes.flatMap(x => x.ings)), ...extras];
+  return { days, list, extras, missing, total: all.length, done: all.filter(i => i.checked).length };
 }
 
 // ============================================================
@@ -230,6 +248,7 @@ const ui = {
   view: load(K.view, 'plan'),
   planWeek: thisMonday(),
   shopWeek: isWeekend() ? ymd(addDays(mondayOf(new Date()), 7)) : thisMonday(),
+  shopMode: load(K.shopMode, 'dish'),
   recipeQuery: '',
 };
 if (!VIEWS.includes(ui.view)) ui.view = 'plan';
@@ -317,49 +336,73 @@ function renderPlanWeek(week) {
 
 // ---- 買い物 ----
 function renderShop(el) {
-  const { list, missing } = shoppingList(ui.shopWeek);
-  const todo = list.filter(i => !i.checked);
-  const done = list.filter(i => i.checked);
+  const sh = shoppingList(ui.shopWeek);
+  const byDish = ui.shopMode !== 'all';
   const row = it => `
     <div class="item${it.checked ? ' checked' : ''}">
       <label>
-        <input type="checkbox" data-chk="${esc(it.key)}"${it.checked ? ' checked' : ''}>
+        <input type="checkbox" data-chk="${esc(it.cks.join('|'))}"${it.checked ? ' checked' : ''}>
         <span class="iname">${esc(it.name)}</span>
         ${it.amount ? `<span class="iamt">${esc(it.amount)}</span>` : ''}
-        ${it.days.length ? `<span class="idays" title="${esc(it.dishes.join('、'))}">${it.days.join('・')}</span>` : ''}
+        ${!byDish && it.days.length ? `<span class="idays" title="${esc(it.dishes.join('、'))}">${it.days.join('・')}</span>` : ''}
       </label>
       ${it.extKey ? `<button class="x" data-act="delExtra" data-k="${esc(it.extKey)}" aria-label="削除">×</button>` : ''}
     </div>`;
-  const groups = SHOP_CATS.map(cat => {
-    const items = todo.filter(i => i.cat === cat);
-    if (!items.length) return '';
-    const title = cat === '調味料' ? '調味料 <small>家にあるか確認</small>' : cat;
-    return `<h3 class="grp">${title}</h3>${items.map(row).join('')}`;
-  }).join('');
 
+  let body;
+  if (byDish) {
+    const dishCard = dish => {
+      const done = dish.ings.filter(i => i.checked).length;
+      return `
+        <div class="dish-card${dish.ings.length && done === dish.ings.length ? ' complete' : ''}">
+          <div class="dish-card-head c-${RECIPE_CATS.indexOf(dish.cat)}">
+            <span>${esc(dish.name)}</span>
+            ${dish.ings.length ? `<small>${done} / ${dish.ings.length}</small>` : ''}
+          </div>
+          ${dish.ings.length ? dish.ings.map(row).join('')
+            : `<p class="dish-missing">材料が未登録です <button class="link" data-act="editRecipe" data-id="${dish.id}">登録する</button></p>`}
+        </div>`;
+    };
+    body = sh.days.map(day => `
+      <h3 class="grp day-grp"><span>${dowOf(day.date)}</span> ${md(parseYmd(day.date))}${day.note ? ` <small>📝 ${esc(day.note)}</small>` : ''}</h3>
+      ${day.dishes.map(dishCard).join('')}`).join('')
+      + (sh.extras.length ? `<h3 class="grp">追加で買うもの</h3>${sh.extras.map(row).join('')}` : '');
+  } else {
+    const todo = sh.list.filter(i => !i.checked);
+    const done = sh.list.filter(i => i.checked);
+    body = (sh.missing.length ? `
+      <div class="callout">材料が未登録の料理：
+        ${sh.missing.map(m => `<button class="link" data-act="editRecipe" data-id="${m.id}">${esc(m.name)}（${m.dow}）</button>`).join('、')}
+      </div>` : '')
+      + SHOP_CATS.map(cat => {
+        const items = todo.filter(i => i.cat === cat);
+        if (!items.length) return '';
+        return `<h3 class="grp">${cat === '調味料' ? '調味料 <small>家にあるか確認</small>' : cat}</h3>${items.map(row).join('')}`;
+      }).join('')
+      + (done.length ? `<h3 class="grp muted">チェック済み</h3>${done.map(row).join('')}` : '');
+  }
+
+  const empty = !sh.days.length && !sh.extras.length;
   el.innerHTML = `
-    ${list.length ? `
+    <div class="seg shop-mode">
+      <button class="${byDish ? 'on' : ''}" data-act="shopMode" data-mode="dish">料理ごと</button>
+      <button class="${byDish ? '' : 'on'}" data-act="shopMode" data-mode="all">まとめて（売り場順）</button>
+    </div>
+    ${sh.total ? `
       <div class="shop-head">
-        <div class="progress"><div style="width:${(done.length / list.length) * 100}%"></div></div>
-        <div class="shop-count">${done.length} / ${list.length}</div>
-      </div>` : ''}
-    ${missing.length ? `
-      <div class="callout">
-        材料が未登録の料理があります：
-        ${missing.map(m => `<button class="link" data-act="editRecipe" data-id="${m.id}">${esc(m.name)}（${m.dow}）</button>`).join('、')}
+        <div class="progress"><div style="width:${(sh.done / sh.total) * 100}%"></div></div>
+        <div class="shop-count">${sh.done} / ${sh.total}</div>
       </div>` : ''}
     <form class="add-extra" data-form="extra">
       <input id="extraInput" name="n" placeholder="ほかに買うもの（洗剤・牛乳など）" autocomplete="off" enterkeyhint="done">
       <button class="btn primary">追加</button>
     </form>
-    ${list.length === 0 ? `<p class="empty">この週の献立に材料が登録された料理がまだありません。<br>献立を入れると、ここに材料が集まります。</p>` : ''}
-    ${groups}
-    ${!todo.length && list.length ? `<p class="empty">全部そろいました 🎉</p>` : ''}
-    ${done.length ? `<h3 class="grp muted">チェック済み</h3>${done.map(row).join('')}` : ''}
-    ${list.length ? `
+    ${empty ? `<p class="empty">この週の献立に、登録済みの料理がまだありません。<br>献立を入れると、ここに材料が並びます。</p>` : body}
+    ${sh.total && sh.done === sh.total ? `<p class="empty">全部そろいました 🎉</p>` : ''}
+    ${sh.total ? `
       <div class="plan-foot">
         <button class="btn" data-act="shareList">リストを送る / コピー</button>
-        ${done.length ? `<button class="btn" data-act="uncheckAll">チェックを全部外す</button>` : ''}
+        ${sh.done ? `<button class="btn" data-act="uncheckAll">チェックを全部外す</button>` : ''}
       </div>` : ''}`;
 }
 
@@ -693,18 +736,26 @@ const actions = {
     setMany(Object.keys(data).filter(k => k.startsWith(prefix)).map(k => [k, null]));
   },
   shareList: () => {
-    const { list } = shoppingList(ui.shopWeek);
-    const todo = list.filter(i => !i.checked);
+    const sh = shoppingList(ui.shopWeek);
     const m = parseYmd(ui.shopWeek);
     const lines = [`【${md(m)}〜${md(addDays(m, 6))} の買い物】`];
-    for (const cat of SHOP_CATS) {
-      const items = todo.filter(i => i.cat === cat);
-      if (!items.length) continue;
-      lines.push('', `■ ${cat}`);
-      for (const it of items) lines.push(`・${it.name}${it.amount ? ' ' + it.amount : ''}`);
+    const line = it => `・${it.name}${it.amount ? ' ' + it.amount : ''}`;
+    if (ui.shopMode !== 'all') {
+      for (const day of sh.days) for (const dish of day.dishes) {
+        const todo = dish.ings.filter(i => !i.checked);
+        if (todo.length) lines.push('', `■ ${md(parseYmd(day.date))}（${dowOf(day.date)}）${dish.name}`, ...todo.map(line));
+      }
+      const ex = sh.extras.filter(i => !i.checked);
+      if (ex.length) lines.push('', '■ 追加', ...ex.map(line));
+    } else {
+      for (const cat of SHOP_CATS) {
+        const items = sh.list.filter(i => i.cat === cat && !i.checked);
+        if (items.length) lines.push('', `■ ${cat}`, ...items.map(line));
+      }
     }
     shareText(lines.join('\n'), '買い物リスト');
   },
+  shopMode: b => { ui.shopMode = b.dataset.mode; store(K.shopMode, ui.shopMode); render(true); },
 
   // 設定
   saveConf: async () => {
@@ -793,8 +844,7 @@ document.addEventListener('submit', e => {
 document.addEventListener('change', e => {
   const t = e.target;
   if (t.dataset.chk) {
-    const k = `chk:${ui.shopWeek}:${t.dataset.chk}`;
-    set(k, t.checked ? 1 : null);
+    setMany(t.dataset.chk.split('|').map(ck => [`chk:${ui.shopWeek}:${ck}`, t.checked ? 1 : null]));
     render(true);
   } else if (t.id === 'importFile' && t.files[0]) {
     t.files[0].text().then(txt => {
