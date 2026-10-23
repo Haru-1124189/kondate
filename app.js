@@ -26,13 +26,13 @@ const RECIPE_CATS = ['主菜', '副菜', '汁物', '主食', 'その他'];
 // 買い物リストの売り場カテゴリ（並び順＝売り場を回る順）
 const SHOP_CATS = ['野菜・果物', '肉', '魚介', '卵・乳製品', '豆腐・練り物', '主食・乾物', 'その他', '追加', '調味料'];
 const ING_WORDS = {
-  '野菜・果物': '玉ねぎ たまねぎ 玉葱 にんじん 人参 じゃがいも じゃが芋 キャベツ レタス トマト ミニトマト きゅうり なす ナス ピーマン もやし ほうれん草 小松菜 白菜 大根 ねぎ ネギ 長ねぎ 青ねぎ 万能ねぎ にら ニラ ブロッコリー かぼちゃ ごぼう れんこん しめじ えのき しいたけ 椎茸 まいたけ 舞茸 エリンギ きのこ 生姜 しょうが にんにく 大葉 水菜 アボカド レモン りんご バナナ さつまいも 里芋 長芋 山芋 オクラ ズッキーニ パプリカ セロリ アスパラ 豆苗 かいわれ みょうが パセリ とうもろこし コーン 枝豆 いちご みかん ゴーヤ チンゲン菜 青梗菜 春菊 三つ葉 カット野菜 サラダ菜 ベビーリーフ 野菜',
+  '野菜・果物': '玉ねぎ たまねぎ 玉葱 にんじん 人参 じゃがいも じゃが芋 キャベツ レタス トマト ミニトマト きゅうり なす ナス ピーマン もやし ほうれん草 小松菜 白菜 大根 ねぎ ネギ 長ねぎ 青ねぎ 万能ねぎ にら ニラ ブロッコリー かぼちゃ ごぼう れんこん しめじ えのき しいたけ 椎茸 まいたけ 舞茸 エリンギ きのこ 生姜 しょうが にんにく 大葉 水菜 アボカド レモン りんご バナナ さつまいも 里芋 長芋 山芋 オクラ ズッキーニ パプリカ セロリ アスパラ 豆苗 かいわれ みょうが パセリ とうもろこし コーン 枝豆 いちご みかん ゴーヤ チンゲン菜 青梗菜 春菊 三つ葉 カット野菜 サラダ菜 ベビーリーフ 野菜 たけのこ マッシュルーム サンチュ バジル ししとう すだち なめこ パクチー クレソン 絹さや 梅干し レモン汁',
   '肉': '豚 牛 鶏 ひき肉 挽肉 合挽 ミンチ ベーコン ハム ソーセージ ウインナー ささみ 手羽 肉',
-  '魚介': '鮭 さけ サーモン さば 鯖 あじ 鯵 いわし ぶり 鰤 たら 鱈 まぐろ かつお えび 海老 いか たこ あさり しじみ ほたて 帆立 しらす 刺身 魚',
+  '魚介': '鮭 さけ サーモン さば 鯖 あじ 鯵 いわし ぶり 鰤 たら 鱈 まぐろ かつお えび 海老 いか たこ あさり しじみ ほたて 帆立 しらす 刺身 魚 牡蠣 カレイ さんま 白身魚 桜えび ゆでだこ',
   '卵・乳製品': '卵 たまご 玉子 牛乳 チーズ バター ヨーグルト 生クリーム',
-  '豆腐・練り物': '豆腐 厚揚げ 油揚げ 納豆 こんにゃく ちくわ かまぼこ はんぺん さつま揚げ キムチ',
-  '主食・乾物': '米 ご飯 ごはん パン 食パン うどん そば パスタ スパゲッティ 麺 中華麺 焼きそば 小麦粉 薄力粉 片栗粉 パン粉 春雨 わかめ のり 海苔 昆布 かつお節 ごま 胡麻 餃子の皮 カレールー シチュールー ルー ツナ 缶 トマト缶',
-  '調味料': '醤油 しょうゆ 味噌 みそ 砂糖 塩 こしょう 胡椒 塩こしょう 酢 みりん 酒 料理酒 油 サラダ油 ごま油 オリーブオイル マヨネーズ ケチャップ ソース 中濃ソース だし 顆粒だし 白だし コンソメ 鶏ガラ 鶏がらスープ めんつゆ ポン酢 オイスターソース 豆板醤 コチュジャン カレー粉 はちみつ ドレッシング 焼肉のたれ わさび からし',
+  '豆腐・練り物': '豆腐 厚揚げ 油揚げ 納豆 こんにゃく ちくわ かまぼこ はんぺん さつま揚げ キムチ しらたき ごぼう天 紅しょうが ザーサイ',
+  '主食・乾物': '米 ご飯 ごはん パン 食パン うどん そば パスタ スパゲッティ 麺 中華麺 焼きそば 小麦粉 薄力粉 片栗粉 パン粉 春雨 わかめ のり 海苔 昆布 かつお節 ごま 胡麻 餃子の皮 カレールー シチュールー ルー ツナ 缶 トマト缶 そうめん マカロニ ひじき 切り干し大根 カシューナッツ 春巻きの皮 しゅうまいの皮 ライスペーパー 天ぷら粉 お好み焼き粉 たこ焼き粉 天かす ココナッツミルク クルトン レーズン ちらし寿司の素',
+  '調味料': '醤油 しょうゆ 味噌 みそ 砂糖 塩 こしょう 胡椒 塩こしょう 酢 みりん 酒 料理酒 油 サラダ油 ごま油 オリーブオイル マヨネーズ ケチャップ ソース 中濃ソース だし 顆粒だし 白だし コンソメ 鶏ガラ 鶏がらスープ めんつゆ ポン酢 オイスターソース 豆板醤 コチュジャン カレー粉 はちみつ ドレッシング 焼肉のたれ わさび からし にんにくチューブ 生姜チューブ 甜麺醤 ナンプラー ごまだれ ラー油 白ワイン 鍋の素 キムチ鍋の素 おでんの素 スンドゥブの素 冷やし中華のたれ ラーメンスープの素 タコスシーズニング グリーンカレーペースト すし酢 鷹の爪',
 };
 const ING_INDEX = Object.entries(ING_WORDS).flatMap(([cat, ws]) => ws.split(' ').map(w => [w, cat]));
 function guessCat(name) {
@@ -52,7 +52,7 @@ function guessCat(name) {
 //   変更は「キー単位の上書き」としてスプレッドシートへ送る。
 //   2人で同時に別の物を触っても潰し合わない。
 // ============================================================
-const K = { data: 'kondate.data', pending: 'kondate.pending', conf: 'kondate.conf', view: 'kondate.view', shopMode: 'kondate.shopMode' };
+const K = { data: 'kondate.data', pending: 'kondate.pending', conf: 'kondate.conf', view: 'kondate.view', shopMode: 'kondate.shopMode', omakase: 'kondate.omakase' };
 let data = load(K.data, {});
 let pending = load(K.pending, []);
 let conf = load(K.conf, { url: '', key: '' });
@@ -271,6 +271,7 @@ const ui = {
   shopWeek: isWeekend() ? ymd(addDays(mondayOf(new Date()), 7)) : thisMonday(),
   shopMode: load(K.shopMode, 'dish'),
   recipeQuery: '',
+  recipeTag: '',
 };
 if (!VIEWS.includes(ui.view)) ui.view = 'plan';
 const viewWeek = () => (ui.view === 'shop' ? ui.shopWeek : ui.planWeek);
@@ -351,6 +352,7 @@ function renderPlanWeek(week) {
     </div>
     <div class="plan-foot">
       ${total === 0 ? `<button class="btn" data-act="copyPrevWeek" data-week="${week}">前の週の献立をコピー</button>` : ''}
+      <button class="btn" data-act="omakaseWeek" data-week="${week}">🎲 空いてる日をおまかせ</button>
       <button class="btn primary" data-act="goShop" data-week="${week}">🛒 ${weekName(week)}の買い物リスト</button>
     </div>`;
 }
@@ -449,15 +451,32 @@ function renderRecipes(el) {
       <span>🏠 いつも家にある物</span>
       <small>${staples().length ? esc(staples().slice(0, 6).join('、')) + (staples().length > 6 ? ' ほか' : '') : '調味料や米などを登録'} ›</small>
     </button>
-    <div id="recipeList"></div>`;
+    ${tagChips(ui.recipeTag, 'recipeTag')}
+    <div id="recipeList"></div>
+    <div class="plan-foot"><button class="btn" data-act="restorePresets">定番料理を入れ直す</button></div>`;
   renderRecipeList();
 }
+
+// タグの絞り込みチップ（1つ選ぶ／もう一度押すと解除）
+function tagChips(selected, act) {
+  return `<div class="tag-bar">${TAGS.map(t =>
+    `<button type="button" class="chip${t === selected ? ' on' : ''}" data-act="${act}" data-t="${t}">${t}</button>`).join('')}</div>`;
+}
+// 料理名・材料・タグのどれかに当たれば OK
+function matchRecipe(r, q, tag) {
+  if (tag && !(r.tags || []).includes(tag)) return false;
+  if (!q) return true;
+  return norm(r.name).toLowerCase().includes(q)
+    || (r.tags || []).some(t => t.includes(q))
+    || (r.ings || []).some(i => norm(i.n).toLowerCase().includes(q));
+}
+
 function renderRecipeList() {
   const box = $('#recipeList');
   if (!box) return;
   const q = norm(ui.recipeQuery).toLowerCase();
   const last = lastUsedMap();
-  const all = recipes().filter(r => !q || norm(r.name).toLowerCase().includes(q) || (r.ings || []).some(i => norm(i.n).toLowerCase().includes(q)));
+  const all = recipes().filter(r => matchRecipe(r, q, ui.recipeTag));
   if (!recipes().length) { box.innerHTML = `<p class="empty">まだ料理がありません。<br>よく作る料理と材料を登録しておくと、買い物リストが自動で作れます。</p>`; return; }
   if (!all.length) { box.innerHTML = `<p class="empty">見つかりませんでした</p>`; return; }
   box.innerHTML = RECIPE_CATS.map(cat => {
@@ -527,7 +546,9 @@ function openPicker(date) {
   openSheet(`
     <div class="sheet-body">
       <h2>${dayLabel(date)} の夕食に追加</h2>
-      <input type="search" id="pickQuery" placeholder="料理名で検索 / 新しい料理名を入力" autocomplete="off" enterkeyhint="search">
+      <button class="btn omakase-btn" data-act="omakaseDay">🎲 迷ったら おまかせで決める</button>
+      <input type="search" id="pickQuery" placeholder="料理名・材料で検索 / 新しい料理名を入力" autocomplete="off" enterkeyhint="search">
+      <div id="pickTags">${tagChips('', 'pickTag')}</div>
       <div id="pickList" class="pick-list"></div>
       <div class="sheet-actions"><button class="btn" data-act="close">閉じる</button></div>
     </div>`, { date });
@@ -539,7 +560,7 @@ function renderPickList() {
   const ql = q.toLowerCase();
   const last = lastUsedMap();
   const today = ymd(new Date());
-  const rs = recipes().filter(r => !ql || norm(r.name).toLowerCase().includes(ql));
+  const rs = recipes().filter(r => matchRecipe(r, ql, sheetCtx.tag));
   // 最近作っていない順（献立のマンネリ防止）
   rs.sort((a, b) => (last[a.id] || '') .localeCompare(last[b.id] || '') || a.name.localeCompare(b.name, 'ja'));
   const exact = rs.some(r => norm(r.name) === q);
@@ -551,7 +572,7 @@ function renderPickList() {
     ${rs.map(r => {
       const lu = last[r.id];
       return `<button class="pick c-${RECIPE_CATS.indexOf(r.cat || 'その他')}" data-act="pickRecipe" data-id="${r.id}">
-        <span>${esc(r.name)}</span><small>${esc(r.cat || 'その他')} · ${lu && lu > today ? `${md(parseYmd(lu))} に予定` : lastUsedLabel(lu)}</small></button>`;
+        <span>${esc(r.name)}</span><small>${esc([r.cat || 'その他', ...(r.tags || []).slice(0, 2)].join('・'))} · ${lu && lu > today ? `${md(parseYmd(lu))} に予定` : lastUsedLabel(lu)}</small></button>`;
     }).join('')}`;
 }
 function addDish(date, dish) {
@@ -632,6 +653,9 @@ function openRecipeEditor(id, opts = {}) {
       <div class="field">種類
         <div class="seg">${RECIPE_CATS.map(c => `<label><input type="radio" name="cat" value="${c}"${(r?.cat || opts.cat || '主菜') === c ? ' checked' : ''}><span>${c}</span></label>`).join('')}</div>
       </div>
+      <div class="field">タグ <small>（おまかせで選ぶときに使います）</small>
+        <div class="seg tags">${TAGS.map(t => `<label><input type="checkbox" name="tags" value="${t}"${(r?.tags || []).includes(t) ? ' checked' : ''}><span>${t}</span></label>`).join('')}</div>
+      </div>
       <div class="field">材料 <small>（1回に作る分の量）</small>
         <div id="ings">${ings.map(ingRow).join('')}</div>
         <button type="button" class="btn small" data-act="addIng">＋ 材料を追加</button>
@@ -648,6 +672,87 @@ function openRecipeEditor(id, opts = {}) {
     </form>`, { id, ...opts });
   if (!r) $('input[name=name]', sheet).focus();
 }
+// ---- おまかせ献立 ----
+//   何系（タグ）を選ぶと、その中から最近作っていない料理をランダムに選ぶ
+//   和食・洋食などの「ジャンル」同士は「どれか」、揚げ物・麺などの「その他」同士も「どれか」、
+//   ジャンルとその他は「両方」（例: 和食＋魚 → 和食の魚料理、和食＋洋食 → どちらか）
+const omakaseTargets = week => {
+  const today = ymd(new Date());
+  return weekDates(week).filter(d => d >= today && !(meal(d).dishes || []).length);
+};
+function openOmakase(dates, title) {
+  const saved = load(K.omakase, { tags: [], sides: false });
+  openSheet(`
+    <div class="sheet-body">
+      <h2>🎲 おまかせ献立</h2>
+      <p class="sub">${esc(title)}</p>
+      <div class="field">何系がいい？ <small>（いくつでも。選ばなければ何でも）</small>
+        <div class="chips">${TAGS.map(t => `<button type="button" class="chip${saved.tags.includes(t) ? ' on' : ''}" data-act="omTag" data-t="${t}">${t}</button>`).join('')}</div>
+      </div>
+      <label class="check-row"><input type="checkbox" id="omSides"${saved.sides ? ' checked' : ''}> 副菜と汁物もつける</label>
+      <button class="btn primary wide" data-act="omRoll">🎲 決めてもらう</button>
+      <div id="omResult"></div>
+    </div>`, { dates, tags: new Set(saved.tags), proposal: null });
+}
+function omPool(tags, cats, cuisineOnly = false) {
+  const cu = [...tags].filter(t => TAG_CUISINE.includes(t));
+  const ot = cuisineOnly ? [] : [...tags].filter(t => !TAG_CUISINE.includes(t));
+  return recipes().filter(r => cats.includes(r.cat || 'その他')
+    && (!cu.length || cu.some(t => (r.tags || []).includes(t)))
+    && (!ot.length || ot.some(t => (r.tags || []).includes(t))));
+}
+function omRollDate(date, avoid) {
+  const { tags } = sheetCtx;
+  // 前後6日以内に作る（作った）料理はなるべく避ける
+  const near = new Set();
+  for (let k = -6; k <= 6; k++) {
+    for (const d of meal(ymd(addDays(parseYmd(date), k))).dishes || []) if (d.r) near.add(d.r);
+  }
+  const pick = pool => {
+    const ok = pool.filter(r => !avoid.has(r.id) && !near.has(r.id));
+    const src = ok.length ? ok : pool.filter(r => !avoid.has(r.id));
+    const list = src.length ? src : pool;
+    return list.length ? list[Math.floor(Math.random() * list.length)] : null;
+  };
+  const main = pick(omPool(tags, ['主菜', '主食']));
+  if (!main) return null;
+  avoid.add(main.id);
+  const ids = [main.id];
+  if ($('#omSides')?.checked) {
+    const side = cat => { const p = omPool(tags, [cat], true); return pick(p.length ? p : omPool(new Set(), [cat])); };
+    const s = side('副菜');
+    if (s) { ids.push(s.id); avoid.add(s.id); }
+    // 鍋や麺に汁物はいらない
+    if (!(main.tags || []).some(t => t === '鍋' || t === '麺')) {
+      const soup = side('汁物');
+      if (soup) { ids.push(soup.id); avoid.add(soup.id); }
+    }
+  }
+  return ids;
+}
+function renderOmakase() {
+  const { dates, proposal } = sheetCtx;
+  const box = $('#omResult');
+  if (!proposal) { box.innerHTML = `<p class="empty">条件に合う料理がありません。<br>タグを減らしてみてください。</p>`; return; }
+  box.innerHTML = `
+    <div class="om-list">
+      ${dates.map(date => `
+        <div class="om-day">
+          <div class="om-date"><b>${dowOf(date)}</b>${md(parseYmd(date))}</div>
+          <div class="om-dishes">${proposal[date].map(id => {
+            const r = recipe(id);
+            return `<span class="dish c-${RECIPE_CATS.indexOf(r.cat || 'その他')}">${esc(r.name)}</span>`;
+          }).join('')}</div>
+          <button class="icon-btn small" data-act="omReroll" data-date="${date}" aria-label="この日だけ引き直す">🔄</button>
+        </div>`).join('')}
+    </div>
+    <div class="sheet-actions">
+      <button class="btn" data-act="omRoll">🎲 全部引き直す</button>
+      <span class="spacer"></span>
+      <button class="btn primary" data-act="omAccept">これで決定</button>
+    </div>`;
+}
+
 // いつも家にある物（調味料・米など）
 function openStaples() {
   const list = staples();
@@ -729,7 +834,8 @@ async function connect(newConf) {
   store(K.conf, conf);
   if (localKeys.length && serverKeys.length) {
     if (confirm('この端末のデータを、スプレッドシートのデータと合わせますか？\n\nOK：両方のデータを合わせる\nキャンセル：スプレッドシートの内容に置き換える')) {
-      pending = localKeys.map(k => ({ k, v: data[k] }));
+      // 両方にあるものはスプレッドシート側を優先（相手が編集した内容を消さないように）
+      pending = localKeys.filter(k => !(k in test.items)).map(k => ({ k, v: data[k] }));
     } else pending = [];
   } else if (localKeys.length) {
     pending = localKeys.map(k => ({ k, v: data[k] }));
@@ -817,6 +923,61 @@ const actions = {
     }
     shareText(lines.join('\n'), '買い物リスト');
   },
+  // タグの絞り込み
+  recipeTag: b => { ui.recipeTag = ui.recipeTag === b.dataset.t ? '' : b.dataset.t; render(true); },
+  pickTag: b => {
+    sheetCtx.tag = sheetCtx.tag === b.dataset.t ? '' : b.dataset.t;
+    $('#pickTags').innerHTML = tagChips(sheetCtx.tag, 'pickTag');
+    renderPickList();
+  },
+  restorePresets: () => {
+    const n = seedPresets(true);
+    toast(n ? `定番料理を ${n} 品戻しました` : '定番料理は全部そろっています');
+  },
+
+  // おまかせ
+  omakaseDay: () => { const d = sheetCtx.date; openOmakase([d], `${dayLabel(d)} の夕食`); },
+  omakaseWeek: b => {
+    const dates = omakaseTargets(b.dataset.week);
+    if (!dates.length) return toast('空いている日がありません');
+    openOmakase(dates, `${weekName(b.dataset.week)}の空いている ${dates.length} 日（${dates.map(dowOf).join('・')}）`);
+  },
+  omTag: b => {
+    const t = b.dataset.t;
+    sheetCtx.tags.has(t) ? sheetCtx.tags.delete(t) : sheetCtx.tags.add(t);
+    b.classList.toggle('on', sheetCtx.tags.has(t));
+  },
+  omRoll: () => {
+    store(K.omakase, { tags: [...sheetCtx.tags], sides: !!$('#omSides')?.checked });
+    const avoid = new Set();
+    const proposal = {};
+    for (const d of sheetCtx.dates) {
+      const ids = omRollDate(d, avoid);
+      if (!ids) { sheetCtx.proposal = null; return renderOmakase(); }
+      proposal[d] = ids;
+    }
+    sheetCtx.proposal = proposal;
+    renderOmakase();
+  },
+  omReroll: b => {
+    const { proposal } = sheetCtx;
+    const date = b.dataset.date;
+    // 他の日に出ている料理とかぶらないように
+    const avoid = new Set(Object.entries(proposal).filter(([d]) => d !== date).flatMap(([, ids]) => ids));
+    avoid.add(proposal[date][0]); // 同じ主菜が続けて出ないように
+    proposal[date] = omRollDate(date, avoid) || proposal[date];
+    renderOmakase();
+  },
+  omAccept: () => {
+    const { proposal } = sheetCtx;
+    setMany(Object.entries(proposal).map(([date, ids]) => {
+      const m = meal(date);
+      return ['meal:' + date, { ...m, dishes: [...(m.dishes || []), ...ids.map(id => ({ r: id, t: recipe(id).name }))] }];
+    }));
+    closeSheet();
+    toast('献立に入れました');
+  },
+
   have: b => {
     const on = b.dataset.on === '1';
     setMany(b.dataset.chk.split('|').map(ck => [`chk:${ui.shopWeek}:${ck}`, on ? 'h' : needValue(ck)]));
@@ -887,7 +1048,8 @@ const forms = {
     const ings = $$('#ings .ing').map(row => ({ n: norm($('.ing-n', row).value), a: norm($('.ing-a', row).value) })).filter(i => i.n);
     const ctx = sheetCtx;
     const id = ctx.id || uid();
-    const value = { name, cat: f.elements.cat.value || 'その他', ings, memo: f.elements.memo.value.trim() };
+    const tags = $$('input[name=tags]:checked', f).map(i => i.value);
+    const value = { name, cat: f.elements.cat.value || 'その他', tags, ings, memo: f.elements.memo.value.trim() };
     if (ctx.addTo) {
       setMany([['rcp:' + id, value], ['meal:' + ctx.addTo, { ...meal(ctx.addTo), dishes: [...(meal(ctx.addTo).dishes || []), { r: id, t: name }] }]]);
     } else if (ctx.replace) {
@@ -926,7 +1088,7 @@ document.addEventListener('change', e => {
     t.files[0].text().then(txt => {
       const j = JSON.parse(txt);
       const d = j.data || j;
-      const keys = Object.keys(d).filter(k => /^(rcp|meal|ext|chk|stp):/.test(k));
+      const keys = Object.keys(d).filter(k => /^(rcp|meal|ext|chk|stp|cfg):/.test(k));
       if (!keys.length) throw new Error('empty');
       if (!confirm(`${keys.length} 件のデータを読み込みますか？（今のデータに上書き・追加されます）`)) return;
       setMany(keys.map(k => [k, d[k]]));
@@ -976,9 +1138,27 @@ function pruneOld() {
   if (old.length) setMany(old.map(k => [k, null]));
 }
 
+// 定番料理といつも家にある物を入れる
+//   初回：全部入れる（cfg:seeded で2回目以降は入れない。相手の端末で消した料理が復活しないように）
+//   入れ直し：消してしまった定番料理だけ戻す（編集済みのものは上書きしない）
+function seedPresets(restore = false) {
+  const pairs = PRESETS.filter(p => !data['rcp:' + p.id])
+    .map(({ id, ...r }) => ['rcp:' + id, r]);
+  if (!restore) {
+    pairs.push(...PRESET_STAPLES.filter(n => !isStaple(n)).map(n => [stapleKey(n), { n }]));
+    pairs.push(['cfg:seeded', 1]);
+  }
+  if (pairs.length) setMany(pairs);
+  return pairs.length;
+}
+
 setSync(conf.url ? 'busy' : 'local');
 render(true);
 if (ui.view === 'plan' && isWeekend()) $('#w-' + shiftWeek(ui.planWeek, 1))?.scrollIntoView();
-readSetupHash();
-if (conf.url) flush().then(pruneOld);
-else pruneOld();
+(async () => {
+  await readSetupHash();
+  if (conf.url) await flush();
+  // 同期の設定があるのに読み込めなかったときは入れない（スプレッドシート側に既にあるかもしれない）
+  if (!data['cfg:seeded'] && (!conf.url || sync.state === 'ok')) seedPresets();
+  pruneOld();
+})();

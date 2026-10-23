@@ -277,3 +277,23 @@ dialog#sheet::backdrop { background: rgb(0 0 0 / 0.4); }
 /* 「やっぱり買う」は押せることが分かるよう薄くしない */
 .item.have, .dish-card .item.have { opacity: 1; }
 .item.have label { opacity: 0.5; }
+
+/* ---- タグ・おまかせ ---- */
+.tag-bar { display: flex; gap: 6px; overflow-x: auto; padding: 4px 0 8px; margin-top: 8px; scrollbar-width: none; }
+.tag-bar::-webkit-scrollbar { display: none; }
+.tag-bar .chip { flex: none; padding: 4px 12px; font-size: 14px; }
+.seg.tags label { flex: 0 0 auto; }
+.seg.tags span { padding: 6px 12px; font-size: 14px; }
+.omakase-btn { width: 100%; margin-top: 12px; border-style: dashed; border-color: var(--accent); color: var(--accent); }
+.btn.wide { width: 100%; margin-top: 16px; }
+.check-row { display: flex; align-items: center; gap: 8px; margin-top: 14px; font-weight: 600; }
+.check-row input { width: 22px; height: 22px; accent-color: var(--accent); }
+.om-list { display: flex; flex-direction: column; gap: 6px; margin-top: 16px; }
+.om-day { display: flex; align-items: center; gap: 10px; background: var(--card); border-radius: 12px; padding: 8px 8px 8px 12px; }
+.om-date { flex: none; width: 44px; display: flex; flex-direction: column; align-items: center; font-size: 12px; color: var(--muted); line-height: 1.2; }
+.om-date b { font-size: 18px; color: var(--text); }
+.om-dishes { flex: 1; min-width: 0; display: flex; flex-wrap: wrap; gap: 4px; }
+.om-dishes .dish { min-height: 32px; padding: 4px 10px; font-size: 14px; }
+.icon-btn.small { width: 40px; height: 40px; font-size: 18px; flex: none; }
+.staple-row > span { flex: none; white-space: nowrap; }
+dialog#sheet { overflow-y: auto; overscroll-behavior: contain; }
