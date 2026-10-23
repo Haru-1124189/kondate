@@ -71,7 +71,13 @@ function setMany(pairs) {
 let sync = { state: 'local', msg: '' };
 let flushTimer = null, busy = false, retryMs = 0;
 
-function setSync(state, msg = '') { sync = { state, msg }; renderSyncDot(); }
+const syncLabel = () => ({ local: '⚪ この端末にだけ保存中', busy: '🟡 送っとる…', ok: '🟢 スプレッドシートと同期中', err: '🔴 同期できとらん：' + esc(sync.msg) }[sync.state]);
+function setSync(state, msg = '') {
+  sync = { state, msg };
+  renderSyncDot();
+  const el = $('#syncStatus'); // 設定画面を開いとったら、その場で書き換える
+  if (el) el.innerHTML = syncLabel();
+}
 
 async function api(body, c = conf) {
   const res = await fetch(c.url, {
@@ -103,7 +109,8 @@ async function flush() {
   if (busy) { scheduleFlush(500); return; }
   busy = true;
   const ops = pending.slice();
-  setSync('busy');
+  // 変更を送るときだけ黄色にする（15秒ごとの取りに行くだけのときは、つながっとる表示のまま）
+  if (ops.length || sync.state !== 'ok') setSync('busy');
   try {
     const j = await api(ops.length ? { action: 'put', ops } : { action: 'get' });
     pending = pending.slice(ops.length);
@@ -517,11 +524,10 @@ function renderRecipeList() {
 
 // ---- 設定 ----
 function renderSettings(el) {
-  const status = { local: '⚪ この端末にだけ保存中', busy: '🟡 同期中…', ok: '🟢 スプレッドシートと同期中', err: '🔴 同期できとらん：' + esc(sync.msg) }[sync.state];
   el.innerHTML = `
     <div class="card">
       <h2>共有（Googleスプレッドシート）</h2>
-      <p class="status">${status}</p>
+      <p class="status" id="syncStatus">${syncLabel()}</p>
       <label class="field">Apps Script の URL
         <input id="cfUrl" type="url" placeholder="https://script.google.com/macros/s/…/exec" value="${esc(conf.url)}" autocomplete="off">
       </label>
