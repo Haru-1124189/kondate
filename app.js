@@ -526,7 +526,7 @@ function renderRecipeList() {
       <h3 class="grp kana-head" id="g-${g}">${g === '他' ? 'その他' : g + '行'}</h3>
       <div class="recipe-grid">${rs.map(r => {
         const n = (r.ings || []).filter(i => norm(i.n)).length;
-        return `<button class="recipe-cell c-${RECIPE_CATS.indexOf(r.cat || 'その他')}" data-act="editRecipe" data-id="${r.id}">
+        return `<button class="recipe-cell c-${RECIPE_CATS.indexOf(r.cat || 'その他')}" data-act="viewRecipe" data-id="${r.id}">
           <span class="rname">${esc(r.name)}</span>
           <span class="rmeta">${cat ? '' : esc(r.cat || 'その他') + ' · '}${n ? lastUsedLabel(last[r.id]) : '<span class="warn-text">材料未登録</span>'}</span>
         </button>`;
@@ -686,6 +686,41 @@ function openNote(date) {
         <button class="btn primary">保存</button>
       </div>
     </form>`, { date });
+}
+
+// 料理リストから料理をタップ：材料を見て、そのまま献立に入れられる
+function openRecipeView(id) {
+  const r = recipe(id);
+  if (!r) return;
+  const ings = (r.ings || []).filter(x => norm(x.n));
+  const memo = r.memo ? esc(r.memo).replace(/(https?:\/\/[^\s<]+)/g, '<a href="$1" target="_blank" rel="noopener">$1</a>').replace(/\n/g, '<br>') : '';
+  const today = ymd(new Date());
+  // 今日から2週間分。週の頭（月曜）で段を分ける
+  const days = Array.from({ length: 14 }, (_, k) => ymd(addDays(parseYmd(today), k)));
+  const dayBtn = date => {
+    const ds = meal(date).dishes || [];
+    const has = ds.some(d => d.r === id);
+    return `<button class="date-pick${date === today ? ' today' : ''}${has ? ' has' : ''}" data-act="addToDate" data-date="${date}">
+      <b>${dowOf(date)}</b><span>${md(parseYmd(date))}</span>
+      <small>${has ? '入っとる' : ds.length ? ds.length + '品' : '空き'}</small></button>`;
+  };
+  openSheet(`
+    <div class="sheet-body">
+      <h2>${esc(r.name)}</h2>
+      <p class="sub">${esc([r.cat || 'その他', ...(r.tags || [])].join('・'))} · ${lastUsedLabel(lastUsedMap()[id])}</p>
+      <div class="field">この日に作る <small>（押したら献立に入るで）</small>
+        <div class="date-grid">${days.map(dayBtn).join('')}</div>
+      </div>
+      ${ings.length
+        ? `<ul class="ing-view">${ings.map(x => `<li><span>${esc(x.n)}</span><span>${esc(x.a || '')}</span></li>`).join('')}</ul>`
+        : `<p class="callout">材料まだ入っとらんで。入れたら買い物リストに出るで。</p>`}
+      ${memo ? `<div class="memo">${memo}</div>` : ''}
+      <div class="sheet-actions">
+        <span class="spacer"></span>
+        <button class="btn" data-act="editRecipe" data-id="${id}">編集する</button>
+        <button class="btn primary" data-act="close">閉じる</button>
+      </div>
+    </div>`, { id });
 }
 
 // 料理の登録・編集
@@ -936,6 +971,16 @@ const actions = {
   // 料理
   newRecipe: () => openRecipeEditor(null),
   editRecipe: b => openRecipeEditor(b.dataset.id),
+  viewRecipe: b => openRecipeView(b.dataset.id),
+  addToDate: b => {
+    const { id } = sheetCtx;
+    const r = recipe(id);
+    const date = b.dataset.date;
+    if ((meal(date).dishes || []).some(d => d.r === id) && !confirm(`${dayLabel(date)} にはもう「${r.name}」入っとるで。もう1個入れる？`)) return;
+    addDish(date, { r: id, t: r.name });
+    closeSheet();
+    toast(`${dayLabel(date)} に「${r.name}」入れた`);
+  },
   addIng: () => appendIngRow(),
   rmIng: b => b.closest('.ing').remove(),
   deleteRecipe: () => {
