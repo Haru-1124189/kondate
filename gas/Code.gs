@@ -1,3 +1,4 @@
+/** @OnlyCurrentDoc */  // このスプレッドシートだけに権限を絞る
 /**
  * こんだて — 同期用 Google Apps Script
  *
