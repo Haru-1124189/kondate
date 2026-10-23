@@ -333,3 +333,4 @@ dialog#sheet { overflow-y: auto; overscroll-behavior: contain; }
 .date-pick.today { border-color: var(--warn); border-width: 2px; }
 .date-pick.has { background: var(--accent-soft); border-color: var(--accent); }
 .date-pick.has small { color: var(--accent); font-weight: 600; }
+.focus-sink { position: absolute; width: 1px; height: 1px; overflow: hidden; outline: none; }

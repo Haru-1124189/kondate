@@ -591,8 +591,11 @@ const sheet = $('#sheet');
 let sheetCtx = {};
 function openSheet(html, ctx = {}) {
   sheetCtx = ctx;
-  sheet.innerHTML = html;
+  // 開いた瞬間にブラウザが最初の入力欄へカーソルを当てて、iPhone でプルダウンやキーボードが勝手に出るのを防ぐ。
+  // 見えん置き場（autofocus）にカーソルを置いとく。入力欄に最初から入れたいときは、開いたあとに自分で focus() する
+  sheet.innerHTML = '<span class="focus-sink" tabindex="-1" autofocus></span>' + html;
   if (!sheet.open) sheet.showModal();
+  else $('.focus-sink', sheet).focus();
 }
 function closeSheet() { if (sheet.open) sheet.close(); sheetCtx = {}; }
 sheet.addEventListener('click', e => { if (e.target === sheet) closeSheet(); }); // 背景タップで閉じる
