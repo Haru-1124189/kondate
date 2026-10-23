@@ -5,7 +5,7 @@
  * 使い方（くわしくは README）:
  *   1. 新しい Google スプレッドシートを作る
  *   2. 拡張機能 → Apps Script を開き、このファイルの中身をまるごと貼り付ける
- *   3. 下の PASSWORD を好きな合言葉に変えて保存
+ *   3. 下の PASSWORD の行だけ、好きな合言葉に変えて保存
  *   4. デプロイ → 新しいデプロイ → 種類「ウェブアプリ」
  *        次のユーザーとして実行: 自分
  *        アクセスできるユーザー: 全員
@@ -26,7 +26,8 @@ function doPost(e) {
   } catch (err) {
     return out_({ ok: false, error: 'bad request' });
   }
-  if (PASSWORD === 'ここを合言葉に変える') return out_({ ok: false, error: 'Code.gs の PASSWORD 変えてくれや' });
+  // 合言葉が初期のままなら止める（「ここを合言葉に変える」を一括置換しても巻き込まれんよう、頭の数文字だけで見る）
+  if (/^ここを合言/.test(PASSWORD)) return out_({ ok: false, error: 'Code.gs の PASSWORD 変えてくれや' });
   if (req.key !== PASSWORD) return out_({ ok: false, error: 'auth' });
 
   const lock = LockService.getScriptLock();
