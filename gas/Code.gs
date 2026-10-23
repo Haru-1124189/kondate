@@ -25,7 +25,7 @@ function doPost(e) {
   } catch (err) {
     return out_({ ok: false, error: 'bad request' });
   }
-  if (PASSWORD === 'ここを合言葉に変える') return out_({ ok: false, error: 'Code.gs の PASSWORD を変えてね' });
+  if (PASSWORD === 'ここを合言葉に変える') return out_({ ok: false, error: 'Code.gs の PASSWORD 変えてくれや' });
   if (req.key !== PASSWORD) return out_({ ok: false, error: 'auth' });
 
   const lock = LockService.getScriptLock();

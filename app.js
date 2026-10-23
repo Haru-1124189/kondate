@@ -82,8 +82,8 @@ async function api(body, c = conf) {
   });
   if (!res.ok) throw new Error('通信エラー（' + res.status + '）');
   let j;
-  try { j = await res.json(); } catch { throw new Error('URLが違うかも'); }
-  if (!j.ok) throw new Error(j.error === 'auth' ? '合言葉が違うみたい' : (j.error || '不明なエラー'));
+  try { j = await res.json(); } catch { throw new Error('URL違うかもしれん'); }
+  if (!j.ok) throw new Error(j.error === 'auth' ? '合言葉違うで' : (j.error || '不明なエラー'));
   return j;
 }
 
@@ -148,7 +148,7 @@ function lastUsedMap() {
   return map;
 }
 function lastUsedLabel(date) {
-  if (!date) return 'まだ作ってない';
+  if (!date) return 'まだ作っとらん';
   const days = Math.round((parseYmd(date) - parseYmd(ymd(new Date()))) / 864e5);
   if (days > 0) return `${md(parseYmd(date))} に予定`;
   if (days === 0) return '今日';
@@ -311,7 +311,7 @@ function renderHeader() {
 
 function renderSyncDot() {
   const el = $('#syncDot');
-  const label = { local: 'この端末だけに保存中', busy: '同期中…', ok: 'スプレッドシートと同期済み', err: '同期できてない：' + sync.msg }[sync.state];
+  const label = { local: 'この端末だけに保存中', busy: '同期中…', ok: 'スプレッドシートと同期済み', err: '同期できとらん：' + sync.msg }[sync.state];
   el.className = 'sync-dot ' + sync.state;
   el.title = label;
   el.setAttribute('aria-label', label);
@@ -389,7 +389,7 @@ function renderShop(el) {
             ${dish.ings.length ? `<small>${done} / ${dish.ings.length}</small>` : ''}
           </div>
           ${dish.ings.length ? dish.ings.map(row).join('')
-            : `<p class="dish-missing">材料がまだ入ってない <button class="link" data-act="editRecipe" data-id="${dish.id}">登録する</button></p>`}
+            : `<p class="dish-missing">材料まだ入っとらん <button class="link" data-act="editRecipe" data-id="${dish.id}">登録する</button></p>`}
         </div>`;
     };
     body = sh.days.map(day => `
@@ -429,9 +429,9 @@ function renderShop(el) {
       <button class="btn primary">追加</button>
     </form>
     ${empty ? '' : `
-      <p class="hint shop-hint">冷蔵庫を見て、残ってる物は「家にある」を押してね。
+      <p class="hint shop-hint">冷蔵庫見て、残っとる物は「家にある」押しといて。
         <button class="link" data-act="staples">いつも家にある物（${staples().length}）</button></p>`}
-    ${empty ? `<p class="empty">この週の献立がまだ空っぽ。<br>献立を入れたら、ここに材料が並ぶよ。</p>` : body}
+    ${empty ? `<p class="empty">この週の献立まだ空っぽやん。<br>献立入れたら、ここに材料が並ぶで。</p>` : body}
     ${sh.total && sh.done === sh.total ? `<p class="empty">全部そろった！🎉</p>` : ''}
     ${sh.total ? `
       <div class="plan-foot">
@@ -495,8 +495,8 @@ function renderRecipeList() {
   const cat = ui.recipeCat && ui.recipeCat !== 'すべて' ? ui.recipeCat : '';
   const all = recipes().filter(r => (!cat || (r.cat || 'その他') === cat) && matchRecipe(r, q, ui.recipeTag))
     .sort((a, b) => yomiOf(a).localeCompare(yomiOf(b), 'ja'));
-  if (!recipes().length) { box.innerHTML = `<p class="empty">まだ料理がないよ。<br>よく作る料理と材料を入れとくと、買い物リストが勝手にできる。</p>`; return; }
-  if (!all.length) { box.innerHTML = `<p class="empty">見つからなかった</p>`; return; }
+  if (!recipes().length) { box.innerHTML = `<p class="empty">まだ料理ないで。<br>よう作る料理と材料入れとったら、買い物リスト勝手にできるで。</p>`; return; }
+  if (!all.length) { box.innerHTML = `<p class="empty">見つからんかった</p>`; return; }
   const groups = [...GYOU, '他'].map(g => [g, all.filter(r => gyouOf(r) === g)]).filter(([, rs]) => rs.length);
   box.innerHTML = `
     <div class="kana-index">${[...GYOU, '他'].map(g => {
@@ -517,7 +517,7 @@ function renderRecipeList() {
 
 // ---- 設定 ----
 function renderSettings(el) {
-  const status = { local: '⚪ この端末にだけ保存中', busy: '🟡 同期中…', ok: '🟢 スプレッドシートと同期中', err: '🔴 同期できてない：' + esc(sync.msg) }[sync.state];
+  const status = { local: '⚪ この端末にだけ保存中', busy: '🟡 同期中…', ok: '🟢 スプレッドシートと同期中', err: '🔴 同期できとらん：' + esc(sync.msg) }[sync.state];
   el.innerHTML = `
     <div class="card">
       <h2>共有（Googleスプレッドシート）</h2>
@@ -532,12 +532,12 @@ function renderSettings(el) {
         <button class="btn primary" data-act="saveConf">保存して接続</button>
         ${conf.url ? `<button class="btn" data-act="disconnect">接続をやめる</button>` : ''}
       </div>
-      <p class="hint">設定のしかたは <a href="https://github.com/Haru-1124189/kondate#readme" target="_blank" rel="noopener">README</a> を見てね。</p>
+      <p class="hint">設定のしかたは <a href="https://github.com/Haru-1124189/kondate#readme" target="_blank" rel="noopener">README</a> 見てくれや。</p>
     </div>
     ${conf.url ? `
     <div class="card">
       <h2>相手のスマホを設定</h2>
-      <p>このリンクをLINEで送って、開いてもらえば設定完了。<br><small>※合言葉入りだから、他の人には送らないで。</small></p>
+      <p>このリンクLINEで送って、開いてもろたら設定完了や。<br><small>※合言葉入っとるから、他の人に送ったらあかんで。</small></p>
       <button class="btn" data-act="shareSetup">設定リンクを送る</button>
     </div>` : ''}
     <div class="card">
@@ -589,9 +589,9 @@ function renderPickList() {
   const exact = rs.some(r => norm(r.name) === q);
   $('#pickList').innerHTML = `
     ${q && !exact ? `
-      <button class="pick new" data-act="pickNew" data-name="${esc(q)}">＋「${esc(q)}」を料理として登録<small>材料も入れとくと買い物リストに出る</small></button>
-      <button class="pick new" data-act="pickText" data-name="${esc(q)}">✎「${esc(q)}」を名前だけで追加<small>外食・お惣菜など、材料がいらないとき</small></button>` : ''}
-    ${!recipes().length && !q ? `<p class="empty">料理名を入れて登録しよう</p>` : ''}
+      <button class="pick new" data-act="pickNew" data-name="${esc(q)}">＋「${esc(q)}」を料理として登録<small>材料も入れとったら買い物リストに出るで</small></button>
+      <button class="pick new" data-act="pickText" data-name="${esc(q)}">✎「${esc(q)}」を名前だけで追加<small>外食・お惣菜とか、材料いらんとき</small></button>` : ''}
+    ${!recipes().length && !q ? `<p class="empty">料理名入れて登録しよか</p>` : ''}
     ${rs.map(r => {
       const lu = last[r.id];
       return `<button class="pick c-${RECIPE_CATS.indexOf(r.cat || 'その他')}" data-act="pickRecipe" data-id="${r.id}">
@@ -619,8 +619,8 @@ function openDish(date, i) {
       <p class="sub">${dayLabel(date)}${r ? ' · ' + esc(r.cat || 'その他') : ''}</p>
       ${r ? (ings.length
         ? `<ul class="ing-view">${ings.map(x => `<li><span>${esc(x.n)}</span><span>${esc(x.a || '')}</span></li>`).join('')}</ul>`
-        : `<p class="callout">材料がまだ入ってない。入れたら買い物リストに出るよ。</p>`)
-        : `<p class="hint">名前だけの予定（買い物リストには出ない）</p>`}
+        : `<p class="callout">材料まだ入っとらんで。入れたら買い物リストに出るで。</p>`)
+        : `<p class="hint">名前だけの予定やで（買い物リストには出ん）</p>`}
       ${memo ? `<div class="memo">${memo}</div>` : ''}
       <label class="field">別の日に移動
         <select id="moveTo">${moveOpts}</select>
@@ -712,7 +712,7 @@ function openOmakase(dates, title) {
     <div class="sheet-body">
       <h2>🎲 おまかせ献立</h2>
       <p class="sub">${esc(title)}</p>
-      <div class="field">何系がいい？ <small>（いくつでも。選ばなければ何でも）</small>
+      <div class="field">何系がええ？ <small>（いくつでも。選ばんかったら何でも）</small>
         <div class="chips">${TAGS.map(t => `<button type="button" class="chip${saved.tags.includes(t) ? ' on' : ''}" data-act="omTag" data-t="${t}">${t}</button>`).join('')}</div>
       </div>
       <label class="check-row"><input type="checkbox" id="omSides"${saved.sides ? ' checked' : ''}> 副菜と汁物もつける</label>
@@ -759,7 +759,7 @@ function omRollDate(date, avoid) {
 function renderOmakase() {
   const { dates, proposal } = sheetCtx;
   const box = $('#omResult');
-  if (!proposal) { box.innerHTML = `<p class="empty">条件に合う料理がない…<br>タグを減らしてみて。</p>`; return; }
+  if (!proposal) { box.innerHTML = `<p class="empty">条件に合う料理ないわ…<br>タグ減らしてみてくれや。</p>`; return; }
   box.innerHTML = `
     <div class="om-list">
       ${dates.map(date => `
@@ -789,7 +789,7 @@ function openStaples() {
   openSheet(`
     <form class="sheet-body" data-form="staple">
       <h2>いつも家にある物</h2>
-      <p class="hint">ここに入れた物は、買い物リストで最初から「家にある」になる。切れてたら、その週だけ「やっぱり買う」にすればOK。</p>
+      <p class="hint">ここに入れた物は、買い物リストで最初から「家にある」になるで。切れとったら、その週だけ「やっぱり買う」にしたらええ。</p>
       <div class="add-extra">
         <input name="n" list="ingList" placeholder="例: 醤油、米、塩" autocomplete="off" enterkeyhint="done">
         <button class="btn primary">追加</button>
@@ -846,7 +846,7 @@ async function shareText(text, title) {
     try { await navigator.share({ title, text }); return; } catch (e) { if (e.name === 'AbortError') return; }
   }
   try { await navigator.clipboard.writeText(text); toast('コピーした'); }
-  catch { prompt('これをコピーしてね', text); }
+  catch { prompt('これコピーしてくれや', text); }
 }
 
 const b64e = s => btoa(String.fromCharCode(...new TextEncoder().encode(s))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
@@ -883,7 +883,7 @@ const actions = {
     const week = b.dataset.week;
     const prev = weekDates(shiftWeek(week, -1));
     const pairs = weekDates(week).map((d, i) => [d, meal(prev[i])]).filter(([, m]) => (m.dishes || []).length || m.note);
-    if (!pairs.length) return toast('前の週の献立がないよ');
+    if (!pairs.length) return toast('前の週の献立ないで');
     setMany(pairs.map(([d, m]) => ['meal:' + d, { dishes: m.dishes || [], note: m.note || '' }]));
     toast('前の週の献立をコピーした');
   },
@@ -914,7 +914,7 @@ const actions = {
   rmIng: b => b.closest('.ing').remove(),
   deleteRecipe: () => {
     const r = recipe(sheetCtx.id);
-    if (!confirm(`「${r.name}」を消す？\n（献立に入ってる分は名前だけ残る）`)) return;
+    if (!confirm(`「${r.name}」を消す？\n（献立に入っとる分は名前だけ残るで）`)) return;
     set('rcp:' + sheetCtx.id, null);
     closeSheet();
   },
@@ -960,14 +960,14 @@ const actions = {
   },
   restorePresets: () => {
     const n = seedPresets(true);
-    toast(n ? `定番料理を ${n} 品戻した` : '定番料理は全部そろってるよ');
+    toast(n ? `定番料理を ${n} 品戻した` : '定番料理は全部そろっとるで');
   },
 
   // おまかせ
   omakaseDay: () => { const d = sheetCtx.date; openOmakase([d], `${dayLabel(d)} の夕食`); },
   omakaseWeek: b => {
     const dates = omakaseTargets(b.dataset.week);
-    if (!dates.length) return toast('空いてる日がないよ');
+    if (!dates.length) return toast('空いとる日ないで');
     openOmakase(dates, `${weekName(b.dataset.week)}の空いている ${dates.length} 日（${dates.map(dowOf).join('・')}）`);
   },
   omTag: b => {
@@ -1020,20 +1020,20 @@ const actions = {
   saveConf: async () => {
     const url = norm($('#cfUrl').value);
     const key = $('#cfKey').value.trim();
-    if (!/^https:\/\/script\.google(usercontent)?\.com\//.test(url)) return toast('Apps Script の URL を入れて');
-    if (!key) return toast('合言葉を入れて');
+    if (!/^https:\/\/script\.google(usercontent)?\.com\//.test(url)) return toast('Apps Script の URL 入れてくれや');
+    if (!key) return toast('合言葉入れてくれや');
     setSync('busy');
     try {
       await connect({ url, key });
       toast('つながった！');
     } catch (e) {
       setSync(conf.url ? 'err' : 'local', e.message);
-      alert('つながらなかった：' + e.message);
+      alert('つながらんかった：' + e.message);
     }
     render(true);
   },
   disconnect: () => {
-    if (!confirm('スプレッドシートとの同期やめる？\n（この端末のデータは残るよ）')) return;
+    if (!confirm('スプレッドシートとの同期やめる？\n（この端末のデータは残るで）')) return;
     conf = { url: '', key: '' };
     store(K.conf, conf);
     pending = [];
@@ -1043,7 +1043,7 @@ const actions = {
   },
   shareSetup: () => {
     const link = location.origin + location.pathname + '#s=' + b64e(JSON.stringify({ u: conf.url, k: conf.key }));
-    shareText(`こんだての設定リンク。開いたら同期の設定が終わるよ。\n${link}`, 'こんだて 設定');
+    shareText(`こんだての設定リンクや。開いたら同期の設定終わるで。\n${link}`, 'こんだて 設定');
   },
   export: () => {
     const blob = new Blob([JSON.stringify({ app: 'kondate', at: new Date().toISOString(), data }, null, 1)], { type: 'application/json' });
@@ -1121,7 +1121,7 @@ document.addEventListener('change', e => {
       if (!confirm(`${keys.length} 件のデータを読み込む？（今のデータに上書き・追加される）`)) return;
       setMany(keys.map(k => [k, d[k]]));
       toast('読み込んだ');
-    }).catch(() => alert('このファイルは読み込めなかった'));
+    }).catch(() => alert('このファイル読み込めんかった'));
     t.value = '';
   }
 });
@@ -1150,12 +1150,12 @@ async function readSetupHash() {
   if (!m) return;
   history.replaceState(null, '', location.pathname + location.search);
   let c;
-  try { c = JSON.parse(b64d(m[1])); } catch { alert('設定リンクが壊れてるっぽい'); return; }
+  try { c = JSON.parse(b64d(m[1])); } catch { alert('設定リンク壊れとるっぽいわ'); return; }
   if (!c.u) return;
-  if (conf.url === c.u && conf.key === c.k) return toast('もう設定済みだよ');
-  if (!confirm('共有の設定を読み込む？\n（2人で同じ献立・買い物リストが使えるようになる）')) return;
+  if (conf.url === c.u && conf.key === c.k) return toast('もう設定済みやで');
+  if (!confirm('共有の設定を読み込む？\n（2人で同じ献立・買い物リスト使えるようになるで）')) return;
   try { await connect({ url: c.u, key: c.k || '' }); toast('設定できた！'); }
-  catch (e) { alert('つながらなかった：' + e.message); }
+  catch (e) { alert('つながらんかった：' + e.message); }
   render(true);
 }
 
