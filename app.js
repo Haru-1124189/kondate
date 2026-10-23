@@ -222,14 +222,22 @@ function shoppingList(week) {
 // 画面
 // ============================================================
 const VIEWS = ['plan', 'shop', 'recipes', 'settings'];
-const ui = { view: load(K.view, 'plan'), week: initialWeek(), recipeQuery: '' };
+// 献立は「今週＋来週」の2週間を並べる（来週を考えながら今週も見えるように）
+// 買い物は1週間ずつ。週末（土日）に開いたら来週分を出す
+const isWeekend = () => [0, 6].includes(new Date().getDay());
+const thisMonday = () => ymd(mondayOf(new Date()));
+const ui = {
+  view: load(K.view, 'plan'),
+  planWeek: thisMonday(),
+  shopWeek: isWeekend() ? ymd(addDays(mondayOf(new Date()), 7)) : thisMonday(),
+  recipeQuery: '',
+};
 if (!VIEWS.includes(ui.view)) ui.view = 'plan';
-
-// 週末（土日）に開いたら来週の献立を出す
-function initialWeek() {
-  const t = new Date();
-  const m = mondayOf(t);
-  return ymd(t.getDay() === 0 || t.getDay() === 6 ? addDays(m, 7) : m);
+const viewWeek = () => (ui.view === 'shop' ? ui.shopWeek : ui.planWeek);
+const shiftWeek = (w, n) => ymd(addDays(parseYmd(w), 7 * n));
+function weekName(w) {
+  const diff = Math.round((parseYmd(w) - mondayOf(new Date())) / 864e5 / 7);
+  return diff === 0 ? '今週' : diff === 1 ? '来週' : diff === -1 ? '先週' : diff === 2 ? '再来週' : diff > 0 ? `${diff}週間後` : `${-diff}週間前`;
 }
 
 let dirty = false;
@@ -251,10 +259,11 @@ function renderHeader() {
   $('#pageTitle').hidden = weekly;
   $('#pageTitle').textContent = ui.view === 'recipes' ? '料理リスト' : '設定';
   if (weekly) {
-    const m = parseYmd(ui.week);
-    const diff = Math.round((m - mondayOf(new Date())) / 864e5 / 7);
-    $('#weekTitle').textContent = diff === 0 ? '今週' : diff === 1 ? '来週' : diff === -1 ? '先週' : diff > 0 ? `${diff}週間後` : `${-diff}週間前`;
-    $('#weekRange').textContent = `${md(m)}（月）〜 ${md(addDays(m, 6))}（日）`;
+    const w = viewWeek();
+    const m = parseYmd(w);
+    const days = ui.view === 'plan' ? 13 : 6;
+    $('#weekTitle').textContent = ui.view === 'plan' ? `${weekName(w)}・${weekName(shiftWeek(w, 1))}` : `${weekName(w)}の買い物`;
+    $('#weekRange').textContent = `${md(m)}（月）〜 ${md(addDays(m, days))}（日）`;
   }
   renderSyncDot();
 }
@@ -269,15 +278,19 @@ function renderSyncDot() {
 
 // ---- 献立 ----
 function renderPlan(el) {
+  el.innerHTML = [ui.planWeek, shiftWeek(ui.planWeek, 1)].map(renderPlanWeek).join('');
+}
+function renderPlanWeek(week) {
   const today = ymd(new Date());
-  const dates = weekDates(ui.week);
+  const dates = weekDates(week);
   const total = dates.reduce((n, d) => n + (meal(d).dishes || []).length, 0);
-  el.innerHTML = `
+  return `
+    <h2 class="week-head" id="w-${week}">${weekName(week)} <small>${md(parseYmd(week))}〜${md(addDays(parseYmd(week), 6))}</small></h2>
     <div class="days">
       ${dates.map((date, i) => {
         const m = meal(date);
         return `
-        <div class="day${date === today ? ' today' : ''}${i >= 5 ? ' weekend' : ''}">
+        <div class="day${date === today ? ' today' : ''}${date < today ? ' past' : ''}${i >= 5 ? ' weekend' : ''}">
           <button class="day-head" data-act="note" data-date="${date}" aria-label="${md(parseYmd(date))}のメモ">
             <span class="dow">${DOW[i]}</span><span class="date">${md(parseYmd(date))}</span>
           </button>
@@ -297,14 +310,14 @@ function renderPlan(el) {
       }).join('')}
     </div>
     <div class="plan-foot">
-      ${total === 0 ? `<button class="btn" data-act="copyPrevWeek">先週の献立をコピー</button>` : ''}
-      <button class="btn primary" data-act="goShop">🛒 この週の買い物リスト</button>
+      ${total === 0 ? `<button class="btn" data-act="copyPrevWeek" data-week="${week}">前の週の献立をコピー</button>` : ''}
+      <button class="btn primary" data-act="goShop" data-week="${week}">🛒 ${weekName(week)}の買い物リスト</button>
     </div>`;
 }
 
 // ---- 買い物 ----
 function renderShop(el) {
-  const { list, missing } = shoppingList(ui.week);
+  const { list, missing } = shoppingList(ui.shopWeek);
   const todo = list.filter(i => !i.checked);
   const done = list.filter(i => i.checked);
   const row = it => `
@@ -628,13 +641,14 @@ const actions = {
   add: b => openPicker(b.dataset.date),
   dish: b => openDish(b.dataset.date, Number(b.dataset.i)),
   note: b => openNote(b.dataset.date),
-  goShop: () => switchView('shop'),
-  copyPrevWeek: () => {
-    const prev = weekDates(ymd(addDays(parseYmd(ui.week), -7)));
-    const pairs = weekDates(ui.week).map((d, i) => [d, meal(prev[i])]).filter(([, m]) => (m.dishes || []).length || m.note);
-    if (!pairs.length) return toast('先週の献立がありません');
+  goShop: b => { ui.shopWeek = b.dataset.week; switchView('shop'); },
+  copyPrevWeek: b => {
+    const week = b.dataset.week;
+    const prev = weekDates(shiftWeek(week, -1));
+    const pairs = weekDates(week).map((d, i) => [d, meal(prev[i])]).filter(([, m]) => (m.dishes || []).length || m.note);
+    if (!pairs.length) return toast('前の週の献立がありません');
     setMany(pairs.map(([d, m]) => ['meal:' + d, { dishes: m.dishes || [], note: m.note || '' }]));
-    toast('先週の献立をコピーしました');
+    toast('前の週の献立をコピーしました');
   },
   pickRecipe: b => {
     const r = recipe(b.dataset.id);
@@ -675,13 +689,13 @@ const actions = {
     setMany([[k, null], [`chk:${week}:x:${k.split(':')[2]}`, null]]);
   },
   uncheckAll: () => {
-    const prefix = `chk:${ui.week}:`;
+    const prefix = `chk:${ui.shopWeek}:`;
     setMany(Object.keys(data).filter(k => k.startsWith(prefix)).map(k => [k, null]));
   },
   shareList: () => {
-    const { list } = shoppingList(ui.week);
+    const { list } = shoppingList(ui.shopWeek);
     const todo = list.filter(i => !i.checked);
-    const m = parseYmd(ui.week);
+    const m = parseYmd(ui.shopWeek);
     const lines = [`【${md(m)}〜${md(addDays(m, 6))} の買い物】`];
     for (const cat of SHOP_CATS) {
       const items = todo.filter(i => i.cat === cat);
@@ -736,7 +750,7 @@ const forms = {
   extra: f => {
     const n = norm(f.elements.n.value);
     if (!n) return;
-    set(`ext:${ui.week}:${uid()}`, { n });
+    set(`ext:${ui.shopWeek}:${uid()}`, { n });
     render(true);
     $('#extraInput').focus(); // 続けて入力できるように
   },
@@ -779,7 +793,7 @@ document.addEventListener('submit', e => {
 document.addEventListener('change', e => {
   const t = e.target;
   if (t.dataset.chk) {
-    const k = `chk:${ui.week}:${t.dataset.chk}`;
+    const k = `chk:${ui.shopWeek}:${t.dataset.chk}`;
     set(k, t.checked ? 1 : null);
     render(true);
   } else if (t.id === 'importFile' && t.files[0]) {
@@ -800,9 +814,14 @@ document.addEventListener('input', e => {
 });
 
 $$('.tabs button').forEach(b => b.addEventListener('click', () => switchView(b.dataset.view)));
-$('#prevWeek').addEventListener('click', () => { ui.week = ymd(addDays(parseYmd(ui.week), -7)); render(true); });
-$('#nextWeek').addEventListener('click', () => { ui.week = ymd(addDays(parseYmd(ui.week), 7)); render(true); });
-$('#weekLabel').addEventListener('click', () => { ui.week = ymd(mondayOf(new Date())); render(true); });
+function moveWeek(n) {
+  if (ui.view === 'shop') ui.shopWeek = n === 0 ? thisMonday() : shiftWeek(ui.shopWeek, n);
+  else ui.planWeek = n === 0 ? thisMonday() : shiftWeek(ui.planWeek, n);
+  render(true);
+}
+$('#prevWeek').addEventListener('click', () => moveWeek(-1));
+$('#nextWeek').addEventListener('click', () => moveWeek(1));
+$('#weekLabel').addEventListener('click', () => moveWeek(0));
 $('#syncDot').addEventListener('click', () => { if (sync.state !== 'busy') flush(); switchView('settings'); });
 
 // ============================================================
@@ -833,6 +852,7 @@ function pruneOld() {
 
 setSync(conf.url ? 'busy' : 'local');
 render(true);
+if (ui.view === 'plan' && isWeekend()) $('#w-' + shiftWeek(ui.planWeek, 1))?.scrollIntoView();
 readSetupHash();
 if (conf.url) flush().then(pruneOld);
 else pruneOld();
