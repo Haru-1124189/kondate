@@ -436,6 +436,10 @@ function renderShop(el) {
 
   const empty = !sh.days.length && !sh.extras.length;
   el.innerHTML = `
+    <div class="memo-card">
+      <label for="shopMemo">📝 メモ <small>（2人で共有。書いたら勝手に保存されるで）</small></label>
+      <textarea id="shopMemo" rows="2" placeholder="コストコで買うもんとか、なんでも書いといて">${esc(data['memo:main']?.t || '')}</textarea>
+    </div>
     <div class="seg shop-mode">
       <button class="${byDish ? 'on' : ''}" data-act="shopMode" data-mode="dish">料理ごと</button>
       <button class="${byDish ? '' : 'on'}" data-act="shopMode" data-mode="all">まとめて（売り場順）</button>
@@ -459,6 +463,7 @@ function renderShop(el) {
         <button class="btn" data-act="shareList">リストを送る / コピー</button>
         ${sh.done ? `<button class="btn" data-act="uncheckAll">チェックをリセット</button>` : ''}
       </div>` : ''}`;
+  fitMemo($('#shopMemo'));
 }
 
 // ---- 料理リスト ----
@@ -1029,6 +1034,8 @@ const actions = {
         if (items.length) lines.push('', `■ ${cat}`, ...items.map(line));
       }
     }
+    const memo = data['memo:main']?.t;
+    if (memo) lines.push('', '■ メモ', memo);
     shareText(lines.join('\n'), '買い物リスト');
   },
   // タグの絞り込み
@@ -1211,7 +1218,7 @@ document.addEventListener('change', e => {
     t.files[0].text().then(txt => {
       const j = JSON.parse(txt);
       const d = j.data || j;
-      const keys = Object.keys(d).filter(k => /^(rcp|meal|ext|chk|stp|cfg):/.test(k));
+      const keys = Object.keys(d).filter(k => /^(rcp|meal|ext|chk|stp|cfg|memo):/.test(k));
       if (!keys.length) throw new Error('empty');
       if (!confirm(`${keys.length} 件のデータを読み込む？（今のデータに上書き・追加される）`)) return;
       setMany(keys.map(k => [k, d[k]]));
@@ -1220,9 +1227,25 @@ document.addEventListener('change', e => {
     t.value = '';
   }
 });
+// 共有メモ：打つのが止まって0.8秒したら保存（1文字ごとに送らんように）
+let memoTimer;
+const saveMemo = el => {
+  clearTimeout(memoTimer);
+  const t = el.value.trim() ? el.value : '';
+  if (t !== (data['memo:main']?.t || '')) set('memo:main', t ? { t } : null);
+};
+const fitMemo = el => { el.style.height = 'auto'; el.style.height = el.scrollHeight + 2 + 'px'; };
 document.addEventListener('input', e => {
   if (e.target.id === 'recipeQuery') { ui.recipeQuery = e.target.value; renderRecipeList(); }
+  if (e.target.id === 'shopMemo') {
+    const el = e.target;
+    fitMemo(el);
+    clearTimeout(memoTimer);
+    memoTimer = setTimeout(() => saveMemo(el), 800);
+  }
 });
+// 画面を離れたときは待たずに保存
+document.addEventListener('focusout', e => { if (e.target.id === 'shopMemo') saveMemo(e.target); });
 
 $$('.tabs button').forEach(b => b.addEventListener('click', () => switchView(b.dataset.view)));
 function moveWeek(n) {

@@ -334,3 +334,8 @@ dialog#sheet { overflow-y: auto; overscroll-behavior: contain; }
 .date-pick.has { background: var(--accent-soft); border-color: var(--accent); }
 .date-pick.has small { color: var(--accent); font-weight: 600; }
 .focus-sink { position: absolute; width: 1px; height: 1px; overflow: hidden; outline: none; }
+
+/* ---- 共有メモ ---- */
+.memo-card { background: var(--card); border-radius: var(--radius); padding: 10px 12px 12px; margin-bottom: 12px; box-shadow: 0 1px 2px rgb(0 0 0 / 0.05); }
+.memo-card label { display: block; font-weight: 700; margin-bottom: 6px; }
+.memo-card textarea { min-height: 64px; resize: none; overflow: hidden; line-height: 1.5; }
