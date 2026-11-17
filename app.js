@@ -437,8 +437,8 @@ function renderShop(el) {
   const empty = !sh.days.length && !sh.extras.length;
   el.innerHTML = `
     <div class="memo-card">
-      <label for="shopMemo">📝 メモ <small>（2人で共有。書いたら勝手に保存されるで）</small></label>
-      <textarea id="shopMemo" rows="2" placeholder="コストコで買うもんとか、なんでも書いといて">${esc(data['memo:main']?.t || '')}</textarea>
+      <label for="shopMemo">📝 メモ</label>
+      <textarea id="shopMemo" rows="2">${esc(data['memo:main']?.t || '')}</textarea>
     </div>
     <div class="seg shop-mode">
       <button class="${byDish ? 'on' : ''}" data-act="shopMode" data-mode="dish">料理ごと</button>
